@@ -55,6 +55,10 @@ describe("Sidebar", () => {
     expect(
       screen.getByRole("link", { name: /asset structure/i })
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Info" })).toHaveAttribute(
+      "href",
+      "/info/about"
+    );
   });
 
   it("uses the responsive default width when no manual override is set", () => {
@@ -93,6 +97,32 @@ describe("Sidebar", () => {
     expect(
       screen.getByRole("link", { name: /overview/i })
     ).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks Info as active on any /info sub-page, not just /info/about", () => {
+    usePathname.mockReturnValue("/info/eula");
+    mockMatchMedia(true);
+
+    render(<Sidebar />);
+
+    expect(screen.getByRole("link", { name: "Info" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(
+      screen.getByRole("link", { name: /overview/i })
+    ).not.toHaveAttribute("aria-current");
+  });
+
+  it("does not mark Info as active outside of /info", () => {
+    usePathname.mockReturnValue("/assets");
+    mockMatchMedia(true);
+
+    render(<Sidebar />);
+
+    expect(screen.getByRole("link", { name: "Info" })).not.toHaveAttribute(
+      "aria-current"
+    );
   });
 
   it("collapses when toggled while the auto state is expanded", async () => {

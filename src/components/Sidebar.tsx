@@ -8,7 +8,16 @@ import { Button } from "@/components/Button";
 
 const BREAKPOINT_QUERY = "(min-width: 1024px)";
 
-const NAV_ITEMS = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  exact: boolean;
+  /** Prefix used to determine the active state, if different from `href`. */
+  matchPrefix?: string;
+};
+
+const MAIN_NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Overview", icon: "space_dashboard", exact: true },
   { href: "/assets", label: "Assets", icon: "inventory_2", exact: false },
   {
@@ -17,7 +26,17 @@ const NAV_ITEMS = [
     icon: "account_tree",
     exact: false,
   },
-] as const;
+];
+
+const FOOTER_NAV_ITEMS: NavItem[] = [
+  {
+    href: "/info/about",
+    label: "Info",
+    icon: "info",
+    exact: false,
+    matchPrefix: "/info",
+  },
+];
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -80,26 +99,31 @@ export function Sidebar() {
           <Icon name="close" />
         </span>
       </Button>
-      {NAV_ITEMS.map((item) => {
-        const isActive = item.exact
-          ? pathname === item.href
-          : pathname.startsWith(item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={isActive ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-full px-3 py-2 md-label-large ${navItemJustify} ${
-              isActive
-                ? "bg-secondary-container text-on-secondary-container"
-                : "text-on-surface-variant hover:bg-on-surface/8"
-            }`}
-          >
-            <Icon name={item.icon} filled={isActive} />
-            <span className={labelVisibility}>{item.label}</span>
-          </Link>
-        );
-      })}
+      {MAIN_NAV_ITEMS.map((item) => renderNavItem(item))}
+      <div className="mt-auto flex flex-col gap-1">
+        {FOOTER_NAV_ITEMS.map((item) => renderNavItem(item))}
+      </div>
     </nav>
   );
+
+  function renderNavItem(item: NavItem) {
+    const isActive = item.exact
+      ? pathname === item.href
+      : pathname.startsWith(item.matchPrefix ?? item.href);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        aria-current={isActive ? "page" : undefined}
+        className={`flex items-center gap-3 rounded-full px-3 py-2 md-label-large ${navItemJustify} ${
+          isActive
+            ? "bg-secondary-container text-on-secondary-container"
+            : "text-on-surface-variant hover:bg-on-surface/8"
+        }`}
+      >
+        <Icon name={item.icon} filled={isActive} />
+        <span className={labelVisibility}>{item.label}</span>
+      </Link>
+    );
+  }
 }
