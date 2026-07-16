@@ -6,7 +6,7 @@ vi.mock("@/lib/actions", () => ({ createAsset: vi.fn() }));
 
 describe("NewAssetSection", () => {
   it("renders a heading and the create form", () => {
-    render(<NewAssetSection />);
+    render(<NewAssetSection structureOptions={[]} />);
 
     expect(
       screen.getByRole("heading", { name: "New Asset" })

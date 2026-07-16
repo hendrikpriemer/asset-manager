@@ -1,9 +1,12 @@
+import { getFlattenedStructureOptions } from "@/lib/asset-structure";
 import { NewAssetSection } from "@/components/NewAssetSection";
 
-export default function NewAssetPage() {
+export default async function NewAssetPage() {
+  const structureOptions = await getFlattenedStructureOptions();
+
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
-      <NewAssetSection />
+      <NewAssetSection structureOptions={structureOptions} />
     </main>
   );
 }

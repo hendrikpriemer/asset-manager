@@ -19,6 +19,7 @@ describe("parseAssetInput", () => {
     expect(parseAssetInput(formData)).toEqual({
       name: "Laptop",
       description: "A work laptop",
+      structureNodeId: null,
     });
   });
 
@@ -28,6 +29,7 @@ describe("parseAssetInput", () => {
     expect(parseAssetInput(formData)).toEqual({
       name: "Laptop",
       description: null,
+      structureNodeId: null,
     });
   });
 
@@ -37,6 +39,27 @@ describe("parseAssetInput", () => {
     expect(parseAssetInput(formData)).toEqual({
       name: "Laptop",
       description: null,
+      structureNodeId: null,
+    });
+  });
+
+  it("returns the selected structureNodeId when one is provided", () => {
+    const formData = formDataWith({ name: "Laptop", structureNodeId: "node-1" });
+
+    expect(parseAssetInput(formData)).toEqual({
+      name: "Laptop",
+      description: null,
+      structureNodeId: "node-1",
+    });
+  });
+
+  it("returns a null structureNodeId when the field is an empty string (Unassigned)", () => {
+    const formData = formDataWith({ name: "Laptop", structureNodeId: "" });
+
+    expect(parseAssetInput(formData)).toEqual({
+      name: "Laptop",
+      description: null,
+      structureNodeId: null,
     });
   });
 
@@ -65,6 +88,10 @@ describe("parseAssetInput", () => {
     const name = "a".repeat(200);
     const formData = formDataWith({ name });
 
-    expect(parseAssetInput(formData)).toEqual({ name, description: null });
+    expect(parseAssetInput(formData)).toEqual({
+      name,
+      description: null,
+      structureNodeId: null,
+    });
   });
 });

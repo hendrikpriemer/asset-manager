@@ -23,6 +23,7 @@ export async function createAsset(
 
   await prisma.asset.create({ data: input });
   revalidatePath("/assets");
+  revalidatePath("/asset-structure", "layout");
   redirect("/assets");
 }
 
@@ -43,10 +44,12 @@ export async function updateAsset(
 
   await prisma.asset.update({ where: { id }, data: input });
   revalidatePath("/assets");
+  revalidatePath("/asset-structure", "layout");
   redirect("/assets");
 }
 
 export async function deleteAsset(id: string): Promise<void> {
   await prisma.asset.delete({ where: { id } });
   revalidatePath("/assets");
+  revalidatePath("/asset-structure", "layout");
 }

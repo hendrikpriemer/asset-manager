@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { getAssets } from "@/lib/assets";
+import { getAssetsWithStructurePath } from "@/lib/asset-structure";
 import { AssetTable } from "@/components/AssetTable";
 
 export default async function AssetsPage() {
-  const assets = await getAssets();
+  const assets = await getAssetsWithStructurePath();
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">

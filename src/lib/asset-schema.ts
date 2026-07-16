@@ -1,6 +1,10 @@
 export class AssetValidationError extends Error {}
 
-export type AssetInput = { name: string; description: string | null };
+export type AssetInput = {
+  name: string;
+  description: string | null;
+  structureNodeId: string | null;
+};
 
 const MAX_NAME_LENGTH = 200;
 
@@ -22,5 +26,11 @@ export function parseAssetInput(formData: FormData): AssetInput {
     typeof rawDescription === "string" ? rawDescription.trim() : "";
   const description = trimmedDescription === "" ? null : trimmedDescription;
 
-  return { name, description };
+  const rawStructureNodeId = formData.get("structureNodeId");
+  const structureNodeId =
+    typeof rawStructureNodeId === "string" && rawStructureNodeId !== ""
+      ? rawStructureNodeId
+      : null;
+
+  return { name, description, structureNodeId };
 }

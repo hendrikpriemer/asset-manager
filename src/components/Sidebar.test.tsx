@@ -43,7 +43,7 @@ beforeEach(() => {
 });
 
 describe("Sidebar", () => {
-  it("renders both nav items", () => {
+  it("renders all nav items", () => {
     mockMatchMedia(true);
 
     render(<Sidebar />);
@@ -51,7 +51,10 @@ describe("Sidebar", () => {
     expect(
       screen.getByRole("link", { name: /overview/i })
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /assets/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Assets" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /asset structure/i })
+    ).toBeInTheDocument();
   });
 
   it("uses the responsive default width when no manual override is set", () => {

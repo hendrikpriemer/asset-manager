@@ -46,9 +46,10 @@ describe("createAsset", () => {
     );
 
     expect(prisma.asset.create).toHaveBeenCalledWith({
-      data: { name: "Laptop", description: "Work" },
+      data: { name: "Laptop", description: "Work", structureNodeId: null },
     });
     expect(revalidatePath).toHaveBeenCalledWith("/assets");
+    expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
     expect(redirect).toHaveBeenCalledWith("/assets");
   });
 
@@ -87,9 +88,10 @@ describe("updateAsset", () => {
 
     expect(prisma.asset.update).toHaveBeenCalledWith({
       where: { id: "asset-1" },
-      data: { name: "Laptop", description: "Work" },
+      data: { name: "Laptop", description: "Work", structureNodeId: null },
     });
     expect(revalidatePath).toHaveBeenCalledWith("/assets");
+    expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
     expect(redirect).toHaveBeenCalledWith("/assets");
   });
 
@@ -126,5 +128,6 @@ describe("deleteAsset", () => {
       where: { id: "asset-1" },
     });
     expect(revalidatePath).toHaveBeenCalledWith("/assets");
+    expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
   });
 });

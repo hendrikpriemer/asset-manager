@@ -11,6 +11,12 @@ const BREAKPOINT_QUERY = "(min-width: 1024px)";
 const NAV_ITEMS = [
   { href: "/", label: "Overview", icon: "space_dashboard", exact: true },
   { href: "/assets", label: "Assets", icon: "inventory_2", exact: false },
+  {
+    href: "/asset-structure",
+    label: "Asset Structure",
+    icon: "account_tree",
+    exact: false,
+  },
 ] as const;
 
 export function Sidebar() {

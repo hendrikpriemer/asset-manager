@@ -1,9 +1,9 @@
 import Link from "next/link";
-import type { Asset } from "@/generated/prisma/client";
+import type { AssetWithStructurePath } from "@/lib/asset-structure";
 import { deleteAsset } from "@/lib/actions";
 import { DeleteAssetButton } from "@/components/DeleteAssetButton";
 
-export function AssetTable({ assets }: { assets: Asset[] }) {
+export function AssetTable({ assets }: { assets: AssetWithStructurePath[] }) {
   if (assets.length === 0) {
     return <p className="md-body-large text-on-surface-variant">No assets yet.</p>;
   }
@@ -17,6 +17,9 @@ export function AssetTable({ assets }: { assets: Asset[] }) {
           </th>
           <th className="py-3 pr-4 md-title-small text-on-surface-variant">
             Description
+          </th>
+          <th className="py-3 pr-4 md-title-small text-on-surface-variant">
+            Structure
           </th>
           <th className="py-3 pr-4 md-title-small text-on-surface-variant">
             Updated
@@ -35,6 +38,9 @@ export function AssetTable({ assets }: { assets: Asset[] }) {
             <td className="py-3 pr-4 pl-4 text-on-surface">{asset.name}</td>
             <td className="py-3 pr-4 text-on-surface-variant">
               {asset.description ?? "—"}
+            </td>
+            <td className="py-3 pr-4 text-on-surface-variant">
+              {asset.structurePath ?? "Unassigned"}
             </td>
             <td className="py-3 pr-4 text-on-surface-variant">
               {asset.updatedAt.toLocaleString()}

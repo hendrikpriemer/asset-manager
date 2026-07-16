@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { AssetTable } from "./AssetTable";
-import type { Asset } from "@/generated/prisma/client";
+import type { AssetWithStructurePath } from "@/lib/asset-structure";
 
 vi.mock("@/lib/actions", () => ({ deleteAsset: vi.fn() }));
 
-function makeAsset(overrides: Partial<Asset> = {}): Asset {
+function makeAsset(
+  overrides: Partial<AssetWithStructurePath> = {}
+): AssetWithStructurePath {
   return {
     id: "asset-1",
     name: "Laptop",
     description: "Work laptop",
+    structureNodeId: null,
+    structurePath: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-02T00:00:00.000Z"),
     ...overrides,
@@ -43,5 +47,21 @@ describe("AssetTable", () => {
     render(<AssetTable assets={[asset]} />);
 
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows Unassigned when the asset has no structure path", () => {
+    const asset = makeAsset({ structurePath: null });
+
+    render(<AssetTable assets={[asset]} />);
+
+    expect(screen.getByText("Unassigned")).toBeInTheDocument();
+  });
+
+  it("shows the structure path when the asset is assigned", () => {
+    const asset = makeAsset({ structurePath: "Acme / Plant A" });
+
+    render(<AssetTable assets={[asset]} />);
+
+    expect(screen.getByText("Acme / Plant A")).toBeInTheDocument();
   });
 });

@@ -9,7 +9,8 @@ describe("EditAssetSection", () => {
     render(
       <EditAssetSection
         id="asset-1"
-        asset={{ name: "Laptop", description: "Work laptop" }}
+        asset={{ name: "Laptop", description: "Work laptop", structureNodeId: null }}
+        structureOptions={[{ id: "site-1", label: "Plant A" }]}
       />
     );
 
@@ -18,14 +19,31 @@ describe("EditAssetSection", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("Laptop");
     expect(screen.getByLabelText("Description")).toHaveValue("Work laptop");
+    expect(screen.getByLabelText("Structure")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
   it("falls back to an empty description when null", () => {
     render(
-      <EditAssetSection id="asset-1" asset={{ name: "Laptop", description: null }} />
+      <EditAssetSection
+        id="asset-1"
+        asset={{ name: "Laptop", description: null, structureNodeId: null }}
+        structureOptions={[]}
+      />
     );
 
     expect(screen.getByLabelText("Description")).toHaveValue("");
+  });
+
+  it("prefills the structure select from the assigned node", () => {
+    render(
+      <EditAssetSection
+        id="asset-1"
+        asset={{ name: "Laptop", description: null, structureNodeId: "site-1" }}
+        structureOptions={[{ id: "site-1", label: "Plant A" }]}
+      />
+    );
+
+    expect(screen.getByLabelText("Structure")).toHaveValue("site-1");
   });
 });

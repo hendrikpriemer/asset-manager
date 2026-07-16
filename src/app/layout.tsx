@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Roboto } from "next/font/google";
 import { Sidebar } from "@/components/Sidebar";
+import { ToastProvider } from "@/components/ToastProvider";
 import "./globals.css";
 
 const roboto = Roboto({
@@ -39,8 +40,10 @@ export default function RootLayout({
         `fixed inset-0` viewport-relative positioning.
       */}
       <body className="min-h-full flex">
-        <Sidebar />
-        <div className="flex flex-1 flex-col">{children}</div>
+        <ToastProvider>
+          <Sidebar />
+          <div className="flex flex-1 flex-col">{children}</div>
+        </ToastProvider>
       </body>
     </html>
   );
