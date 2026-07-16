@@ -11,7 +11,7 @@ export function EditAssetSection({
 }) {
   return (
     <>
-      <h1 className="text-2xl font-semibold">Edit Asset</h1>
+      <h1 className="md-headline-small text-on-surface">Edit Asset</h1>
       <AssetForm
         action={updateAsset.bind(null, id)}
         initialValues={{ name: asset.name, description: asset.description }}

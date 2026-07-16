@@ -5,6 +5,10 @@ export function getAssets() {
   return prisma.asset.findMany({ orderBy: { updatedAt: "desc" } });
 }
 
+export function getAssetCount() {
+  return prisma.asset.count();
+}
+
 export function getAssetById(id: string) {
   return prisma.asset.findUnique({ where: { id } });
 }

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { ActionState } from "@/lib/actions";
+import { Button } from "@/components/Button";
 
 export function AssetForm({
   action,
@@ -18,36 +19,32 @@ export function AssetForm({
 
   return (
     <form action={formAction} className="flex max-w-md flex-col gap-4">
-      <label className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1 md-body-small text-on-surface-variant">
         Name
         <input
           name="name"
           defaultValue={initialValues?.name ?? ""}
           required
           maxLength={200}
-          className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded-xs border border-outline bg-surface px-3 py-2 md-body-large text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1 md-body-small text-on-surface-variant">
         Description
         <textarea
           name="description"
           defaultValue={initialValues?.description ?? ""}
-          className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded-xs border border-outline bg-surface px-3 py-2 md-body-large text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
       </label>
       {state.error && (
-        <p role="alert" className="text-red-600 dark:text-red-400">
+        <p role="alert" className="md-body-small text-error">
           {state.error}
         </p>
       )}
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-fit rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-      >
+      <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "Saving…" : submitLabel}
-      </button>
+      </Button>
     </form>
   );
 }

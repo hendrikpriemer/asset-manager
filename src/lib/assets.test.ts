@@ -5,6 +5,7 @@ const { prisma } = vi.hoisted(() => ({
     asset: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      count: vi.fn(),
     },
   },
 }));
@@ -18,9 +19,8 @@ const { notFound } = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma }));
 vi.mock("next/navigation", () => ({ notFound }));
 
-const { getAssets, getAssetById, getAssetByIdOrNotFound } = await import(
-  "./assets"
-);
+const { getAssets, getAssetById, getAssetByIdOrNotFound, getAssetCount } =
+  await import("./assets");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -69,5 +69,16 @@ describe("getAssetByIdOrNotFound", () => {
       "NEXT_NOT_FOUND"
     );
     expect(notFound).toHaveBeenCalled();
+  });
+});
+
+describe("getAssetCount", () => {
+  it("returns the total number of assets", async () => {
+    prisma.asset.count.mockResolvedValue(5);
+
+    const result = await getAssetCount();
+
+    expect(prisma.asset.count).toHaveBeenCalledWith();
+    expect(result).toBe(5);
   });
 });

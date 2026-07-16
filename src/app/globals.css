@@ -1,26 +1,246 @@
 @import "tailwindcss";
 
+/*
+ * Material Design 3 color roles, generated from seed #0B57D0 (blue) via
+ * Google's own `@material/material-color-utilities` (SchemeTonalSpot).
+ * Do not hand-edit these hex values — regenerate from the seed instead.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --md-primary: #495d92;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #dae2ff;
+  --md-on-primary-container: #304578;
+  --md-secondary: #585e71;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #dce2f9;
+  --md-on-secondary-container: #404659;
+  --md-tertiary: #735471;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #fed7f9;
+  --md-on-tertiary-container: #5a3d59;
+  --md-error: #ba1a1a;
+  --md-on-error: #ffffff;
+  --md-error-container: #ffdad6;
+  --md-on-error-container: #93000a;
+  --md-background: #faf8ff;
+  --md-on-background: #1a1b21;
+  --md-surface: #faf8ff;
+  --md-on-surface: #1a1b21;
+  --md-surface-variant: #e1e2ec;
+  --md-on-surface-variant: #45464f;
+  --md-surface-dim: #dad9e0;
+  --md-surface-bright: #faf8ff;
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: #f4f3fa;
+  --md-surface-container: #eeedf4;
+  --md-surface-container-high: #e8e7ef;
+  --md-surface-container-highest: #e2e2e9;
+  --md-outline: #757780;
+  --md-outline-variant: #c5c6d0;
+  --md-inverse-surface: #2f3036;
+  --md-inverse-on-surface: #f1f0f7;
+  --md-inverse-primary: #b2c5ff;
+  --md-scrim: #000000;
+  --md-shadow: #000000;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --md-primary: #b2c5ff;
+    --md-on-primary: #172e60;
+    --md-primary-container: #304578;
+    --md-on-primary-container: #dae2ff;
+    --md-secondary: #c0c6dd;
+    --md-on-secondary: #2a3042;
+    --md-secondary-container: #404659;
+    --md-on-secondary-container: #dce2f9;
+    --md-tertiary: #e1bbdd;
+    --md-on-tertiary: #412741;
+    --md-tertiary-container: #5a3d59;
+    --md-on-tertiary-container: #fed7f9;
+    --md-error: #ffb4ab;
+    --md-on-error: #690005;
+    --md-error-container: #93000a;
+    --md-on-error-container: #ffdad6;
+    --md-background: #121318;
+    --md-on-background: #e2e2e9;
+    --md-surface: #121318;
+    --md-on-surface: #e2e2e9;
+    --md-surface-variant: #45464f;
+    --md-on-surface-variant: #c5c6d0;
+    --md-surface-dim: #121318;
+    --md-surface-bright: #38393f;
+    --md-surface-container-lowest: #0d0e13;
+    --md-surface-container-low: #1a1b21;
+    --md-surface-container: #1e1f25;
+    --md-surface-container-high: #282a2f;
+    --md-surface-container-highest: #33343a;
+    --md-outline: #8f909a;
+    --md-outline-variant: #45464f;
+    --md-inverse-surface: #e2e2e9;
+    --md-inverse-on-surface: #2f3036;
+    --md-inverse-primary: #495d92;
   }
 }
 
+@theme inline {
+  --color-primary: var(--md-primary);
+  --color-on-primary: var(--md-on-primary);
+  --color-primary-container: var(--md-primary-container);
+  --color-on-primary-container: var(--md-on-primary-container);
+  --color-secondary: var(--md-secondary);
+  --color-on-secondary: var(--md-on-secondary);
+  --color-secondary-container: var(--md-secondary-container);
+  --color-on-secondary-container: var(--md-on-secondary-container);
+  --color-tertiary: var(--md-tertiary);
+  --color-on-tertiary: var(--md-on-tertiary);
+  --color-tertiary-container: var(--md-tertiary-container);
+  --color-on-tertiary-container: var(--md-on-tertiary-container);
+  --color-error: var(--md-error);
+  --color-on-error: var(--md-on-error);
+  --color-error-container: var(--md-error-container);
+  --color-on-error-container: var(--md-on-error-container);
+  --color-background: var(--md-background);
+  --color-on-background: var(--md-on-background);
+  --color-surface: var(--md-surface);
+  --color-on-surface: var(--md-on-surface);
+  --color-surface-variant: var(--md-surface-variant);
+  --color-on-surface-variant: var(--md-on-surface-variant);
+  --color-surface-dim: var(--md-surface-dim);
+  --color-surface-bright: var(--md-surface-bright);
+  --color-surface-container-lowest: var(--md-surface-container-lowest);
+  --color-surface-container-low: var(--md-surface-container-low);
+  --color-surface-container: var(--md-surface-container);
+  --color-surface-container-high: var(--md-surface-container-high);
+  --color-surface-container-highest: var(--md-surface-container-highest);
+  --color-outline: var(--md-outline);
+  --color-outline-variant: var(--md-outline-variant);
+  --color-inverse-surface: var(--md-inverse-surface);
+  --color-inverse-on-surface: var(--md-inverse-on-surface);
+  --color-inverse-primary: var(--md-inverse-primary);
+  --color-scrim: var(--md-scrim);
+  --color-shadow: var(--md-shadow);
+
+  --font-sans: var(--font-roboto);
+
+  /* M3 shape scale */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 28px;
+
+  /* M3 elevation levels 1-5, standard box-shadow approximation */
+  --shadow-elevation-1: 0px 1px 2px 0px rgb(0 0 0 / 0.3),
+    0px 1px 3px 1px rgb(0 0 0 / 0.15);
+  --shadow-elevation-2: 0px 1px 2px 0px rgb(0 0 0 / 0.3),
+    0px 2px 6px 2px rgb(0 0 0 / 0.15);
+  --shadow-elevation-3: 0px 1px 3px 0px rgb(0 0 0 / 0.3),
+    0px 4px 8px 3px rgb(0 0 0 / 0.15);
+  --shadow-elevation-4: 0px 2px 3px 0px rgb(0 0 0 / 0.3),
+    0px 6px 10px 4px rgb(0 0 0 / 0.15);
+  --shadow-elevation-5: 0px 4px 4px 0px rgb(0 0 0 / 0.3),
+    0px 8px 12px 6px rgb(0 0 0 / 0.15);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--md-background);
+  color: var(--md-on-background);
+}
+
+/* M3 type scale */
+@layer components {
+  .md-display-large {
+    font-size: 57px;
+    line-height: 64px;
+    font-weight: 400;
+    letter-spacing: -0.25px;
+  }
+  .md-display-medium {
+    font-size: 45px;
+    line-height: 52px;
+    font-weight: 400;
+  }
+  .md-display-small {
+    font-size: 36px;
+    line-height: 44px;
+    font-weight: 400;
+  }
+  .md-headline-large {
+    font-size: 32px;
+    line-height: 40px;
+    font-weight: 400;
+  }
+  .md-headline-medium {
+    font-size: 28px;
+    line-height: 36px;
+    font-weight: 400;
+  }
+  .md-headline-small {
+    font-size: 24px;
+    line-height: 32px;
+    font-weight: 400;
+  }
+  .md-title-large {
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 400;
+  }
+  .md-title-medium {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 500;
+    letter-spacing: 0.15px;
+  }
+  .md-title-small {
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+    letter-spacing: 0.1px;
+  }
+  .md-body-large {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+  }
+  .md-body-medium {
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 400;
+    letter-spacing: 0.25px;
+  }
+  .md-body-small {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 400;
+    letter-spacing: 0.4px;
+  }
+  .md-label-large {
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+    letter-spacing: 0.1px;
+  }
+  .md-label-medium {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  .md-label-small {
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+}
+
+/* Material Symbols icon font, default (unfilled) state */
+.material-symbols-outlined {
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
 }
