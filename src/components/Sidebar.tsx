@@ -34,6 +34,20 @@ export function Sidebar() {
     forced === null ? "w-16 lg:w-56" : forced ? "w-56" : "w-16";
   const labelVisibility =
     forced === null ? "sr-only lg:not-sr-only" : forced ? "" : "sr-only";
+  // Collapsed (icon-only rail): toggle button and nav icons are horizontally
+  // centered in the rail. Expanded: toggle moves to the top-right corner,
+  // nav icons align left next to their visible label.
+  const toggleAlignment =
+    forced === null ? "self-center lg:self-end" : forced ? "self-end" : "self-center";
+  const navItemJustify =
+    forced === null
+      ? "justify-center lg:justify-start"
+      : forced
+        ? "justify-start"
+        : "justify-center";
+  const menuIconVisibility = forced === null ? "lg:hidden" : forced ? "hidden" : "";
+  const closeIconVisibility =
+    forced === null ? "hidden lg:inline-block" : forced ? "inline-block" : "hidden";
 
   return (
     <nav
@@ -44,9 +58,21 @@ export function Sidebar() {
         onClick={toggle}
         aria-label="Toggle sidebar width"
         aria-expanded={forced === null ? undefined : forced}
-        className="mb-2 self-start"
+        className={`mb-2 ${toggleAlignment}`}
       >
-        <Icon name="menu" />
+        {/*
+          Visibility toggling lives on a wrapper span, not on the Icon's own
+          className: Google's Material Symbols stylesheet ships an unlayered
+          `.material-symbols-outlined { display: inline-block }` rule, which
+          (per CSS cascade layers) beats Tailwind's layered `hidden`/`lg:hidden`
+          utilities if applied to the same element, regardless of specificity.
+        */}
+        <span className={menuIconVisibility}>
+          <Icon name="menu" />
+        </span>
+        <span className={closeIconVisibility}>
+          <Icon name="close" />
+        </span>
       </Button>
       {NAV_ITEMS.map((item) => {
         const isActive = item.exact
@@ -57,7 +83,7 @@ export function Sidebar() {
             key={item.href}
             href={item.href}
             aria-current={isActive ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-full px-3 py-2 md-label-large ${
+            className={`flex items-center gap-3 rounded-full px-3 py-2 md-label-large ${navItemJustify} ${
               isActive
                 ? "bg-secondary-container text-on-secondary-container"
                 : "text-on-surface-variant hover:bg-on-surface/8"

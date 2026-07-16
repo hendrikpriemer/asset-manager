@@ -165,6 +165,65 @@ describe("Sidebar", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("shows the menu icon and centers icons by default (auto, no override)", () => {
+    mockMatchMedia(true);
+
+    render(<Sidebar />);
+
+    const toggle = screen.getByRole("button", {
+      name: /toggle sidebar width/i,
+    });
+    expect(toggle.className).toContain("self-center lg:self-end");
+    expect(screen.getByText("menu").parentElement).toHaveClass("lg:hidden");
+    expect(screen.getByText("close").parentElement).toHaveClass(
+      "hidden",
+      "lg:inline-block"
+    );
+    expect(screen.getByRole("link", { name: /overview/i }).className).toContain(
+      "justify-center lg:justify-start"
+    );
+  });
+
+  it("shows the close icon top-right and left-aligns nav items once expanded", async () => {
+    const user = userEvent.setup();
+    mockMatchMedia(false);
+    render(<Sidebar />);
+
+    await user.click(
+      screen.getByRole("button", { name: /toggle sidebar width/i })
+    );
+
+    const toggle = screen.getByRole("button", {
+      name: /toggle sidebar width/i,
+    });
+    expect(toggle.className).toContain("self-end");
+    expect(screen.getByText("menu").parentElement).toHaveClass("hidden");
+    expect(screen.getByText("close").parentElement).not.toHaveClass("hidden");
+    expect(
+      screen.getByRole("link", { name: /overview/i }).className
+    ).toContain("justify-start");
+  });
+
+  it("shows the menu icon centered once explicitly collapsed", async () => {
+    const user = userEvent.setup();
+    mockMatchMedia(true);
+    render(<Sidebar />);
+
+    await user.click(
+      screen.getByRole("button", { name: /toggle sidebar width/i })
+    );
+
+    const toggle = screen.getByRole("button", {
+      name: /toggle sidebar width/i,
+    });
+    expect(toggle.className).toContain("self-center");
+    expect(screen.getByText("menu").parentElement).not.toHaveClass("hidden");
+    expect(screen.getByText("close").parentElement).toHaveClass("hidden");
+    expect(
+      screen.getByRole("link", { name: /overview/i }).className
+    ).toContain("justify-center");
+  });
+
   it("removes the matchMedia change listener on unmount", () => {
     const { mql } = mockMatchMedia(true);
     const { unmount } = render(<Sidebar />);
