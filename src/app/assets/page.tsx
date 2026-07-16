@@ -6,7 +6,7 @@ export default async function AssetsPage() {
   const assets = await getAssetsWithStructurePath();
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
+    <main className="flex w-full flex-col gap-6 p-8">
       <div className="flex items-center justify-between">
         <h1 className="md-headline-medium text-on-background">Assets</h1>
         <Link

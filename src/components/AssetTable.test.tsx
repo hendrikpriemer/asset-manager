@@ -35,10 +35,22 @@ describe("AssetTable", () => {
 
     expect(screen.getByText("Laptop")).toBeInTheDocument();
     expect(screen.getByText("Work laptop")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Edit Laptop" })).toHaveAttribute(
       "href",
       "/assets/asset-1/edit"
     );
+  });
+
+  it("shows Edit and Delete tooltips for the row's actions", () => {
+    const asset = makeAsset();
+
+    render(<AssetTable assets={[asset]} />);
+
+    const tooltips = screen.getAllByRole("tooltip");
+    expect(tooltips.map((tooltip) => tooltip.textContent)).toEqual([
+      "Edit",
+      "Delete",
+    ]);
   });
 
   it("shows a placeholder when the asset has no description", () => {

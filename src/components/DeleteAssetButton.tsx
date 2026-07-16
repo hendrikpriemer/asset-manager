@@ -2,12 +2,15 @@
 
 import { useTransition } from "react";
 import { Button } from "@/components/Button";
+import { Icon } from "@/components/Icon";
 
 export function DeleteAssetButton({
   assetId,
+  assetName,
   deleteAssetAction,
 }: {
   assetId: string;
+  assetName: string;
   deleteAssetAction: (id: string) => Promise<void>;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -22,12 +25,13 @@ export function DeleteAssetButton({
   return (
     <Button
       type="button"
-      variant="text"
+      variant="icon"
       color="error"
       onClick={handleDelete}
       disabled={isPending}
+      aria-label={`Delete ${assetName}`}
     >
-      {isPending ? "Deleting…" : "Delete"}
+      <Icon name="delete" />
     </Button>
   );
 }

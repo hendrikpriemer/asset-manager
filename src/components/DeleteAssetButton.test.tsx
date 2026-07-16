@@ -20,16 +20,17 @@ describe("DeleteAssetButton", () => {
     render(
       <DeleteAssetButton
         assetId="asset-1"
+        assetName="Laptop"
         deleteAssetAction={deleteAssetAction}
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete Laptop" }));
 
     expect(deleteAssetAction).not.toHaveBeenCalled();
   });
 
-  it("calls the delete action with the asset id when confirmed", async () => {
+  it("calls the delete action with the asset id when confirmed, and disables while pending", async () => {
     const user = userEvent.setup();
     const { promise, resolve } = deferred<void>();
     const deleteAssetAction = vi.fn().mockReturnValue(promise);
@@ -38,22 +39,23 @@ describe("DeleteAssetButton", () => {
     render(
       <DeleteAssetButton
         assetId="asset-1"
+        assetName="Laptop"
         deleteAssetAction={deleteAssetAction}
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete Laptop" }));
 
     expect(deleteAssetAction).toHaveBeenCalledWith("asset-1");
     await waitFor(() =>
-      expect(screen.getByRole("button")).toHaveTextContent("Deleting…")
+      expect(screen.getByRole("button", { name: "Delete Laptop" })).toBeDisabled()
     );
-    expect(screen.getByRole("button")).toBeDisabled();
 
     resolve();
     await waitFor(() =>
-      expect(screen.getByRole("button")).toHaveTextContent("Delete")
+      expect(
+        screen.getByRole("button", { name: "Delete Laptop" })
+      ).not.toBeDisabled()
     );
-    expect(screen.getByRole("button")).not.toBeDisabled();
   });
 });

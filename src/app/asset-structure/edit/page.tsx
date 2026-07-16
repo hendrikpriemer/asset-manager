@@ -9,7 +9,7 @@ export default async function EditAssetStructurePage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
+    <main className="flex w-full flex-col gap-6 p-8">
       <AssetStructureEditorSection tree={tree} />
     </main>
   );
