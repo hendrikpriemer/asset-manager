@@ -23,6 +23,7 @@ function makeNode(
     createdAt: now,
     updatedAt: now,
     assetCount: 0,
+    assets: [],
     children: [],
     ...overrides,
   };
@@ -37,10 +38,18 @@ const tree = makeNode({
       id: "site-1",
       name: "Plant A",
       parentId: "root",
+      assets: [{ id: "asset-1", name: "Sensor A" }],
       children: [
         makeNode({
           id: "equip-1",
           name: "Lathe",
+          level: AssetStructureLevel.EQUIPMENT,
+          parentId: "site-1",
+          assets: [{ id: "asset-2", name: "Gauge B" }],
+        }),
+        makeNode({
+          id: "equip-2",
+          name: "Empty Equipment",
           level: AssetStructureLevel.EQUIPMENT,
           parentId: "site-1",
         }),
@@ -83,12 +92,34 @@ describe("StructureNavTree", () => {
     );
   });
 
-  it("does not render a nested list for leaf nodes", () => {
+  it("does not render a nested list for a node with no children and no assets", () => {
+    usePathname.mockReturnValue("/asset-structure/equip-2");
+
+    render(<StructureNavTree tree={tree} />);
+
+    const leafLink = screen.getByRole("link", { name: "Empty Equipment" });
+    expect(leafLink.closest("li")?.querySelector("ul")).not.toBeInTheDocument();
+  });
+
+  it("renders assigned assets as leaf links under their node, alongside child nodes", () => {
+    usePathname.mockReturnValue("/asset-structure/root");
+
+    render(<StructureNavTree tree={tree} />);
+
+    expect(screen.getByRole("link", { name: /Sensor A/ })).toHaveAttribute(
+      "href",
+      "/assets/asset-1/edit"
+    );
+  });
+
+  it("renders a nested list for a node with assigned assets but no child nodes", () => {
     usePathname.mockReturnValue("/asset-structure/equip-1");
 
     render(<StructureNavTree tree={tree} />);
 
-    const leafLink = screen.getByRole("link", { name: "Lathe" });
-    expect(leafLink.closest("li")?.querySelector("ul")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Gauge B/ })).toHaveAttribute(
+      "href",
+      "/assets/asset-2/edit"
+    );
   });
 });

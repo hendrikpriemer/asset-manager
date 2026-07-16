@@ -38,7 +38,7 @@ export function Modal({ children }: { children: ReactNode }) {
         aria-modal="true"
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-md rounded-xl bg-surface-container-high p-6 shadow-elevation-3"
+        className="w-fit max-w-[min(64rem,90vw)] max-h-[85vh] overflow-y-auto overflow-x-auto rounded-xl bg-surface-container-high p-6 shadow-elevation-3"
       >
         <Button
           type="button"

@@ -21,6 +21,7 @@ const tree: StructureTreeNode = {
   createdAt: now,
   updatedAt: now,
   assetCount: 0,
+  assets: [],
   children: [
     {
       id: "site-1",
@@ -32,6 +33,7 @@ const tree: StructureTreeNode = {
       createdAt: now,
       updatedAt: now,
       assetCount: 0,
+      assets: [],
       children: [],
     },
   ],

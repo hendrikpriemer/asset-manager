@@ -48,7 +48,7 @@ function rawNode(overrides: Partial<Parameters<typeof buildStructureTree>[0][num
     parentId: null,
     createdAt: now,
     updatedAt: now,
-    _count: { assets: 0 },
+    assets: [],
     ...overrides,
   };
 }
@@ -77,13 +77,20 @@ describe("buildStructureTree", () => {
         level: AssetStructureLevel.ENTERPRISE,
         name: "Acme",
         parentId: null,
-        _count: { assets: 2 },
+        assets: [
+          { id: "a1", name: "Sensor" },
+          { id: "a2", name: "Actuator" },
+        ],
       }),
     ];
 
     const tree = buildStructureTree(nodes);
 
     expect(tree).toMatchObject({ id: "root", name: "Acme", assetCount: 2 });
+    expect(tree?.assets).toEqual([
+      { id: "a1", name: "Sensor" },
+      { id: "a2", name: "Actuator" },
+    ]);
     expect(tree?.children).toEqual([]);
   });
 
@@ -131,7 +138,9 @@ describe("getAssetStructureTree", () => {
     const tree = await getAssetStructureTree();
 
     expect(prisma.assetStructureNode.findMany).toHaveBeenCalledWith({
-      include: { _count: { select: { assets: true } } },
+      include: {
+        assets: { select: { id: true, name: true }, orderBy: { name: "asc" } },
+      },
     });
     expect(tree?.name).toBe("Acme");
   });
@@ -227,6 +236,7 @@ describe("flattenAssetStructure", () => {
       createdAt: now,
       updatedAt: now,
       assetCount: 0,
+      assets: [],
       children: [
         {
           id: "site",
@@ -238,6 +248,7 @@ describe("flattenAssetStructure", () => {
           createdAt: now,
           updatedAt: now,
           assetCount: 3,
+          assets: [],
           children: [],
         },
       ],
@@ -284,6 +295,7 @@ describe("flattenStructureOptions", () => {
       createdAt: now,
       updatedAt: now,
       assetCount: 0,
+      assets: [],
       children: [
         {
           id: "site",
@@ -295,6 +307,7 @@ describe("flattenStructureOptions", () => {
           createdAt: now,
           updatedAt: now,
           assetCount: 0,
+          assets: [],
           children: [],
         },
       ],

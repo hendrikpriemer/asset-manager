@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import type { Asset, AssetStructureLevel } from "@/generated/prisma/client";
 
+export type StructureNodeAsset = { id: string; name: string };
+
 type RawStructureNode = {
   id: string;
   level: AssetStructureLevel;
@@ -11,7 +13,7 @@ type RawStructureNode = {
   parentId: string | null;
   createdAt: Date;
   updatedAt: Date;
-  _count: { assets: number };
+  assets: StructureNodeAsset[];
 };
 
 export type StructureTreeNode = {
@@ -24,6 +26,7 @@ export type StructureTreeNode = {
   createdAt: Date;
   updatedAt: Date;
   assetCount: number;
+  assets: StructureNodeAsset[];
   children: StructureTreeNode[];
 };
 
@@ -50,12 +53,11 @@ export function buildStructureTree(
   }
 
   function toTreeNode(node: RawStructureNode): StructureTreeNode {
-    const { _count, ...rest } = node;
     const children = (byParent.get(node.id) ?? [])
       .slice()
       .sort((a, b) => a.position - b.position)
       .map(toTreeNode);
-    return { ...rest, assetCount: _count.assets, children };
+    return { ...node, assetCount: node.assets.length, children };
   }
 
   const roots = (byParent.get(null) ?? []).sort(
@@ -66,7 +68,7 @@ export function buildStructureTree(
 
 export async function getAssetStructureTree(): Promise<StructureTreeNode | null> {
   const nodes = await prisma.assetStructureNode.findMany({
-    include: { _count: { select: { assets: true } } },
+    include: { assets: { select: { id: true, name: true }, orderBy: { name: "asc" } } },
   });
   return buildStructureTree(nodes);
 }

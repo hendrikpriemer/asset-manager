@@ -40,6 +40,7 @@ function buildTree(): StructureTreeNode {
     createdAt: now,
     updatedAt: now,
     assetCount: 0,
+    assets: [],
     children: [],
   };
   return {
@@ -52,6 +53,7 @@ function buildTree(): StructureTreeNode {
     createdAt: now,
     updatedAt: now,
     assetCount: 0,
+    assets: [],
     children: [child],
   };
 }

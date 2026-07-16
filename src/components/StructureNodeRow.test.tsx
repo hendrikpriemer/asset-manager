@@ -52,6 +52,7 @@ function makeNode(overrides: Partial<StructureTreeNode>): StructureTreeNode {
     createdAt: now,
     updatedAt: now,
     assetCount: 0,
+    assets: [],
     children: [],
     ...overrides,
   };
