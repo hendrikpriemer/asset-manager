@@ -9,9 +9,18 @@ const { prisma } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/lib/prisma", () => ({ prisma }));
+const { notFound } = vi.hoisted(() => ({
+  notFound: vi.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  }),
+}));
 
-const { getAssets, getAssetById } = await import("./assets");
+vi.mock("@/lib/prisma", () => ({ prisma }));
+vi.mock("next/navigation", () => ({ notFound }));
+
+const { getAssets, getAssetById, getAssetByIdOrNotFound } = await import(
+  "./assets"
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -40,5 +49,25 @@ describe("getAssetById", () => {
       where: { id: "1" },
     });
     expect(result).toEqual({ id: "1" });
+  });
+});
+
+describe("getAssetByIdOrNotFound", () => {
+  it("returns the asset when found", async () => {
+    prisma.asset.findUnique.mockResolvedValue({ id: "1" });
+
+    const result = await getAssetByIdOrNotFound("1");
+
+    expect(result).toEqual({ id: "1" });
+    expect(notFound).not.toHaveBeenCalled();
+  });
+
+  it("calls notFound when the asset does not exist", async () => {
+    prisma.asset.findUnique.mockResolvedValue(null);
+
+    await expect(getAssetByIdOrNotFound("missing")).rejects.toThrow(
+      "NEXT_NOT_FOUND"
+    );
+    expect(notFound).toHaveBeenCalled();
   });
 });

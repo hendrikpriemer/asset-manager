@@ -1,7 +1,8 @@
 import { getAssetByIdOrNotFound } from "@/lib/assets";
+import { Modal } from "@/components/Modal";
 import { EditAssetSection } from "@/components/EditAssetSection";
 
-export default async function EditAssetPage({
+export default async function EditAssetModal({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -10,8 +11,8 @@ export default async function EditAssetPage({
   const asset = await getAssetByIdOrNotFound(id);
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
+    <Modal>
       <EditAssetSection id={id} asset={asset} />
-    </main>
+    </Modal>
   );
 }
