@@ -1,6 +1,6 @@
 {
   "name": "asset-manager",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepare": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

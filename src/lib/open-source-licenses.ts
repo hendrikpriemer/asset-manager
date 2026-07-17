@@ -6,8 +6,8 @@ export type OpenSourceLicense = {
 
 /**
  * Runtime dependencies actually shipped with Asset Manager (package.json's
- * "dependencies", not "devDependencies"). Update alongside package.json when
- * a runtime dependency is added, removed, or upgraded.
+ * "dependencies", not "devDependencies"). Regenerated automatically by
+ * scripts/update-app-info.mjs on every commit - do not edit by hand.
  */
 export const OPEN_SOURCE_LICENSES: OpenSourceLicense[] = [
   { name: "@prisma/adapter-pg", version: "7.8.0", license: "Apache-2.0" },
