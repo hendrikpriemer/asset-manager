@@ -74,7 +74,7 @@ describe("StructureNodeDetail", () => {
     ).toBeInTheDocument();
   });
 
-  it("lists assigned assets as links to their edit page", () => {
+  it("lists assigned assets as links to their in-context detail view", () => {
     render(
       <StructureNodeDetail
         node={makeNode()}
@@ -85,7 +85,7 @@ describe("StructureNodeDetail", () => {
 
     expect(screen.getByRole("link", { name: "Lathe" })).toHaveAttribute(
       "href",
-      "/assets/asset-1/edit"
+      "/asset-structure/asset/asset-1"
     );
   });
 });

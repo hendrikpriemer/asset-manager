@@ -1,9 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AssetForm } from "./AssetForm";
 import type { ActionState } from "@/lib/actions";
 import type { StructureOption } from "@/lib/asset-structure";
+
+const back = vi.fn();
+const push = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ back, push }),
+}));
+
+beforeEach(() => {
+  back.mockClear();
+  push.mockClear();
+});
 
 const structureOptions: StructureOption[] = [
   { id: "site-1", label: "Acme / Plant A" },
@@ -126,5 +138,64 @@ describe("AssetForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Name is required."
     );
+  });
+
+  it("navigates back on success when no successHref is given", async () => {
+    const user = userEvent.setup();
+    const action = vi
+      .fn<(prevState: ActionState, formData: FormData) => Promise<ActionState>>()
+      .mockResolvedValue({ error: null });
+
+    render(
+      <AssetForm action={action} submitLabel="Create" structureOptions={[]} />
+    );
+
+    await user.type(screen.getByLabelText("Name"), "Laptop");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("pushes to successHref on success when given", async () => {
+    const user = userEvent.setup();
+    const action = vi
+      .fn<(prevState: ActionState, formData: FormData) => Promise<ActionState>>()
+      .mockResolvedValue({ error: null });
+
+    render(
+      <AssetForm
+        action={action}
+        submitLabel="Create"
+        structureOptions={[]}
+        successHref="/asset-structure/table"
+      />
+    );
+
+    await user.type(screen.getByLabelText("Name"), "Laptop");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/asset-structure/table")
+    );
+    expect(back).not.toHaveBeenCalled();
+  });
+
+  it("does not navigate when the action returns an error", async () => {
+    const user = userEvent.setup();
+    const action = vi
+      .fn<(prevState: ActionState, formData: FormData) => Promise<ActionState>>()
+      .mockResolvedValue({ error: "Name is required." });
+
+    render(
+      <AssetForm action={action} submitLabel="Create" structureOptions={[]} />
+    );
+
+    await user.type(screen.getByLabelText("Name"), "   ");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    await screen.findByRole("alert");
+    expect(back).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
   });
 });

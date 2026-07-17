@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { parseAssetInput, AssetValidationError } from "@/lib/asset-schema";
 
@@ -22,9 +21,9 @@ export async function createAsset(
   }
 
   await prisma.asset.create({ data: input });
-  revalidatePath("/assets");
+  revalidatePath("/asset-structure/table");
   revalidatePath("/asset-structure", "layout");
-  redirect("/assets");
+  return { error: null };
 }
 
 export async function updateAsset(
@@ -43,13 +42,13 @@ export async function updateAsset(
   }
 
   await prisma.asset.update({ where: { id }, data: input });
-  revalidatePath("/assets");
+  revalidatePath("/asset-structure/table");
   revalidatePath("/asset-structure", "layout");
-  redirect("/assets");
+  return { error: null };
 }
 
 export async function deleteAsset(id: string): Promise<void> {
   await prisma.asset.delete({ where: { id } });
-  revalidatePath("/assets");
+  revalidatePath("/asset-structure/table");
   revalidatePath("/asset-structure", "layout");
 }

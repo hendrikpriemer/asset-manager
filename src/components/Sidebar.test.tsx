@@ -51,9 +51,8 @@ describe("Sidebar", () => {
     expect(
       screen.getByRole("link", { name: /overview/i })
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Assets" })).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /asset structure/i })
+      screen.getByRole("link", { name: /asset manager/i })
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Info" })).toHaveAttribute(
       "href",
@@ -80,23 +79,33 @@ describe("Sidebar", () => {
       "page"
     );
     expect(
-      screen.getByRole("link", { name: /assets/i })
+      screen.getByRole("link", { name: /asset manager/i })
     ).not.toHaveAttribute("aria-current");
   });
 
-  it("marks Assets as active for /assets and nested paths", () => {
+  it("marks Asset Manager as active for /asset-structure and nested paths", () => {
+    usePathname.mockReturnValue("/asset-structure/some-node");
+    mockMatchMedia(true);
+
+    render(<Sidebar />);
+
+    expect(
+      screen.getByRole("link", { name: /asset manager/i })
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByRole("link", { name: /overview/i })
+    ).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks Asset Manager as active for /assets sub-paths too", () => {
     usePathname.mockReturnValue("/assets/new");
     mockMatchMedia(true);
 
     render(<Sidebar />);
 
-    expect(screen.getByRole("link", { name: /assets/i })).toHaveAttribute(
-      "aria-current",
-      "page"
-    );
     expect(
-      screen.getByRole("link", { name: /overview/i })
-    ).not.toHaveAttribute("aria-current");
+      screen.getByRole("link", { name: /asset manager/i })
+    ).toHaveAttribute("aria-current", "page");
   });
 
   it("marks Info as active on any /info sub-page, not just /info/about", () => {

@@ -3,6 +3,7 @@ import type { AssetWithStructurePath } from "@/lib/asset-structure";
 import { deleteAsset } from "@/lib/actions";
 import { DeleteAssetButton } from "@/components/DeleteAssetButton";
 import { Icon } from "@/components/Icon";
+import { LevelBadge } from "@/components/LevelBadge";
 import { Tooltip } from "@/components/Tooltip";
 
 export function AssetTable({ assets }: { assets: AssetWithStructurePath[] }) {
@@ -22,6 +23,9 @@ export function AssetTable({ assets }: { assets: AssetWithStructurePath[] }) {
           </th>
           <th className="py-3 pr-4 md-title-small text-on-surface-variant">
             Structure
+          </th>
+          <th className="py-3 pr-4 md-title-small text-on-surface-variant">
+            Level
           </th>
           <th className="py-3 pr-4 md-title-small text-on-surface-variant">
             Updated
@@ -44,8 +48,15 @@ export function AssetTable({ assets }: { assets: AssetWithStructurePath[] }) {
             <td className="py-3 pr-4 text-on-surface-variant">
               {asset.structurePath ?? "Unassigned"}
             </td>
+            <td className="py-3 pr-4">
+              {asset.structureLevel ? (
+                <LevelBadge level={asset.structureLevel} />
+              ) : (
+                <span className="text-on-surface-variant">—</span>
+              )}
+            </td>
             <td className="py-3 pr-4 text-on-surface-variant">
-              {asset.updatedAt.toLocaleString()}
+              {asset.updatedAt.toLocaleString("en-US", { timeZone: "UTC" })}
             </td>
             <td className="flex items-center gap-1 py-2 pr-4">
               <Tooltip label="Edit">

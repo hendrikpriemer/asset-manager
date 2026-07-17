@@ -36,7 +36,7 @@ export function StructureNodeDetail({
             {assets.map((asset) => (
               <li key={asset.id}>
                 <Link
-                  href={`/assets/${asset.id}/edit`}
+                  href={`/asset-structure/asset/${asset.id}`}
                   className="md-body-large text-primary hover:underline"
                 >
                   {asset.name}

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { AssetTable } from "./AssetTable";
+import { AssetStructureLevel } from "@/generated/prisma/client";
 import type { AssetWithStructurePath } from "@/lib/asset-structure";
 
 vi.mock("@/lib/actions", () => ({ deleteAsset: vi.fn() }));
@@ -14,6 +15,7 @@ function makeAsset(
     description: "Work laptop",
     structureNodeId: null,
     structurePath: null,
+    structureLevel: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-02T00:00:00.000Z"),
     ...overrides,
@@ -58,7 +60,7 @@ describe("AssetTable", () => {
 
     render(<AssetTable assets={[asset]} />);
 
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
   it("shows Unassigned when the asset has no structure path", () => {
@@ -75,5 +77,21 @@ describe("AssetTable", () => {
     render(<AssetTable assets={[asset]} />);
 
     expect(screen.getByText("Acme / Plant A")).toBeInTheDocument();
+  });
+
+  it("shows a dash when the asset has no assigned level", () => {
+    const asset = makeAsset({ structureLevel: null });
+
+    render(<AssetTable assets={[asset]} />);
+
+    expect(screen.getAllByText("—")).toHaveLength(1);
+  });
+
+  it("shows the level badge when the asset has an assigned level", () => {
+    const asset = makeAsset({ structureLevel: AssetStructureLevel.WORK_CENTER });
+
+    render(<AssetTable assets={[asset]} />);
+
+    expect(screen.getByText("Work Center")).toBeInTheDocument();
   });
 });

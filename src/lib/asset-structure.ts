@@ -1,8 +1,13 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import type { Asset, AssetStructureLevel } from "@/generated/prisma/client";
 
-export type StructureNodeAsset = { id: string; name: string };
+export type StructureNodeAsset = {
+  id: string;
+  name: string;
+  description: string | null;
+};
 
 type RawStructureNode = {
   id: string;
@@ -32,16 +37,6 @@ export type StructureTreeNode = {
 
 export type StructureOption = { id: string; label: string };
 
-export type FlattenedStructureRow = {
-  id: string;
-  name: string;
-  level: AssetStructureLevel;
-  description: string | null;
-  path: string;
-  assetCount: number;
-  updatedAt: Date;
-};
-
 export function buildStructureTree(
   nodes: RawStructureNode[]
 ): StructureTreeNode | null {
@@ -66,12 +61,25 @@ export function buildStructureTree(
   return roots[0] ? toTreeNode(roots[0]) : null;
 }
 
-export async function getAssetStructureTree(): Promise<StructureTreeNode | null> {
-  const nodes = await prisma.assetStructureNode.findMany({
-    include: { assets: { select: { id: true, name: true }, orderBy: { name: "asc" } } },
-  });
-  return buildStructureTree(nodes);
-}
+/**
+ * Wrapped in React's request-scoped `cache()` since both the asset-structure
+ * browse layout and its root page fetch the tree independently (Next.js
+ * layouts can't pass data to pages via props) - this dedupes the DB query
+ * within a single request instead of running it twice.
+ */
+export const getAssetStructureTree = cache(
+  async (): Promise<StructureTreeNode | null> => {
+    const nodes = await prisma.assetStructureNode.findMany({
+      include: {
+        assets: {
+          select: { id: true, name: true, description: true },
+          orderBy: { name: "asc" },
+        },
+      },
+    });
+    return buildStructureTree(nodes);
+  }
+);
 
 export function getStructureNode(id: string) {
   return prisma.assetStructureNode.findUnique({ where: { id } });
@@ -105,31 +113,6 @@ export function getNodeBreadcrumb(
   return path.reverse();
 }
 
-export function flattenAssetStructure(
-  tree: StructureTreeNode | null
-): FlattenedStructureRow[] {
-  if (!tree) return [];
-  const rows: FlattenedStructureRow[] = [];
-
-  function walk(node: StructureTreeNode, ancestorNames: string[]) {
-    rows.push({
-      id: node.id,
-      name: node.name,
-      level: node.level,
-      description: node.description,
-      path: ancestorNames.join(" / "),
-      assetCount: node.assetCount,
-      updatedAt: node.updatedAt,
-    });
-    for (const child of node.children) {
-      walk(child, [...ancestorNames, node.name]);
-    }
-  }
-
-  walk(tree, []);
-  return rows;
-}
-
 export function flattenStructureOptions(
   tree: StructureTreeNode | null
 ): StructureOption[] {
@@ -154,7 +137,18 @@ export async function getFlattenedStructureOptions(): Promise<
   return flattenStructureOptions(tree);
 }
 
-export type AssetWithStructurePath = Asset & { structurePath: string | null };
+export function getUnassignedAssets(): Promise<StructureNodeAsset[]> {
+  return prisma.asset.findMany({
+    where: { structureNodeId: null },
+    select: { id: true, name: true, description: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export type AssetWithStructurePath = Asset & {
+  structurePath: string | null;
+  structureLevel: AssetStructureLevel | null;
+};
 
 export async function getAssetsWithStructurePath(): Promise<
   AssetWithStructurePath[]
@@ -162,15 +156,21 @@ export async function getAssetsWithStructurePath(): Promise<
   const [assets, nodes] = await Promise.all([
     prisma.asset.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.assetStructureNode.findMany({
-      select: { id: true, name: true, parentId: true },
+      select: { id: true, name: true, parentId: true, level: true },
     }),
   ]);
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
 
-  return assets.map((asset) => ({
-    ...asset,
-    structurePath: asset.structureNodeId
-      ? getNodeBreadcrumb(asset.structureNodeId, nodesById).join(" / ")
-      : null,
-  }));
+  return assets.map((asset) => {
+    const node = asset.structureNodeId
+      ? nodesById.get(asset.structureNodeId)
+      : undefined;
+    return {
+      ...asset,
+      structurePath: asset.structureNodeId
+        ? getNodeBreadcrumb(asset.structureNodeId, nodesById).join(" / ")
+        : null,
+      structureLevel: node?.level ?? null,
+    };
+  });
 }

@@ -30,10 +30,10 @@ const {
   getStructureNodeByIdOrNotFound,
   getStructureRoot,
   getNodeBreadcrumb,
-  flattenAssetStructure,
   flattenStructureOptions,
   getFlattenedStructureOptions,
   getAssetsWithStructurePath,
+  getUnassignedAssets,
 } = await import("./asset-structure");
 
 const now = new Date("2026-01-01T00:00:00.000Z");
@@ -78,8 +78,8 @@ describe("buildStructureTree", () => {
         name: "Acme",
         parentId: null,
         assets: [
-          { id: "a1", name: "Sensor" },
-          { id: "a2", name: "Actuator" },
+          { id: "a1", name: "Sensor", description: null },
+          { id: "a2", name: "Actuator", description: null },
         ],
       }),
     ];
@@ -88,8 +88,8 @@ describe("buildStructureTree", () => {
 
     expect(tree).toMatchObject({ id: "root", name: "Acme", assetCount: 2 });
     expect(tree?.assets).toEqual([
-      { id: "a1", name: "Sensor" },
-      { id: "a2", name: "Actuator" },
+      { id: "a1", name: "Sensor", description: null },
+      { id: "a2", name: "Actuator", description: null },
     ]);
     expect(tree?.children).toEqual([]);
   });
@@ -139,7 +139,10 @@ describe("getAssetStructureTree", () => {
 
     expect(prisma.assetStructureNode.findMany).toHaveBeenCalledWith({
       include: {
-        assets: { select: { id: true, name: true }, orderBy: { name: "asc" } },
+        assets: {
+          select: { id: true, name: true, description: true },
+          orderBy: { name: "asc" },
+        },
       },
     });
     expect(tree?.name).toBe("Acme");
@@ -220,65 +223,6 @@ describe("getNodeBreadcrumb", () => {
   });
 });
 
-describe("flattenAssetStructure", () => {
-  it("returns an empty array for a null tree", () => {
-    expect(flattenAssetStructure(null)).toEqual([]);
-  });
-
-  it("flattens a nested tree into rows with breadcrumb paths", () => {
-    const tree = {
-      id: "root",
-      level: AssetStructureLevel.ENTERPRISE,
-      name: "Acme",
-      description: null,
-      position: 0,
-      parentId: null,
-      createdAt: now,
-      updatedAt: now,
-      assetCount: 0,
-      assets: [],
-      children: [
-        {
-          id: "site",
-          level: AssetStructureLevel.SITE,
-          name: "Laatzen",
-          description: "Main site",
-          position: 0,
-          parentId: "root",
-          createdAt: now,
-          updatedAt: now,
-          assetCount: 3,
-          assets: [],
-          children: [],
-        },
-      ],
-    };
-
-    const rows = flattenAssetStructure(tree);
-
-    expect(rows).toEqual([
-      {
-        id: "root",
-        name: "Acme",
-        level: AssetStructureLevel.ENTERPRISE,
-        description: null,
-        path: "",
-        assetCount: 0,
-        updatedAt: now,
-      },
-      {
-        id: "site",
-        name: "Laatzen",
-        level: AssetStructureLevel.SITE,
-        description: "Main site",
-        path: "Acme",
-        assetCount: 3,
-        updatedAt: now,
-      },
-    ]);
-  });
-});
-
 describe("flattenStructureOptions", () => {
   it("returns an empty array for a null tree", () => {
     expect(flattenStructureOptions(null)).toEqual([]);
@@ -339,21 +283,51 @@ describe("getFlattenedStructureOptions", () => {
 });
 
 describe("getAssetsWithStructurePath", () => {
-  it("attaches a breadcrumb path to assigned assets and null to unassigned ones", async () => {
+  it("attaches a breadcrumb path and level to assigned assets, and null to unassigned ones", async () => {
     prisma.asset.findMany.mockResolvedValue([
       { id: "a1", name: "Sensor", structureNodeId: "site" },
       { id: "a2", name: "Loose Sensor", structureNodeId: null },
     ]);
     prisma.assetStructureNode.findMany.mockResolvedValue([
-      { id: "root", name: "Acme", parentId: null },
-      { id: "site", name: "Laatzen", parentId: "root" },
+      { id: "root", name: "Acme", parentId: null, level: AssetStructureLevel.ENTERPRISE },
+      { id: "site", name: "Laatzen", parentId: "root", level: AssetStructureLevel.SITE },
     ]);
 
     const result = await getAssetsWithStructurePath();
 
     expect(result).toEqual([
-      { id: "a1", name: "Sensor", structureNodeId: "site", structurePath: "Acme / Laatzen" },
-      { id: "a2", name: "Loose Sensor", structureNodeId: null, structurePath: null },
+      {
+        id: "a1",
+        name: "Sensor",
+        structureNodeId: "site",
+        structurePath: "Acme / Laatzen",
+        structureLevel: AssetStructureLevel.SITE,
+      },
+      {
+        id: "a2",
+        name: "Loose Sensor",
+        structureNodeId: null,
+        structurePath: null,
+        structureLevel: null,
+      },
     ]);
   });
 });
+
+describe("getUnassignedAssets", () => {
+  it("queries assets with no structure node, ordered by name", async () => {
+    prisma.asset.findMany.mockResolvedValue([
+      { id: "a2", name: "Loose Sensor" },
+    ]);
+
+    const result = await getUnassignedAssets();
+
+    expect(prisma.asset.findMany).toHaveBeenCalledWith({
+      where: { structureNodeId: null },
+      select: { id: true, name: true, description: true },
+      orderBy: { name: "asc" },
+    });
+    expect(result).toEqual([{ id: "a2", name: "Loose Sensor" }]);
+  });
+});
+

@@ -13,18 +13,26 @@ type NavItem = {
   label: string;
   icon: string;
   exact: boolean;
-  /** Prefix used to determine the active state, if different from `href`. */
-  matchPrefix?: string;
+  /** Prefixes used to determine the active state. */
+  matchPrefixes: string[];
 };
 
 const MAIN_NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Overview", icon: "space_dashboard", exact: true },
-  { href: "/assets", label: "Assets", icon: "inventory_2", exact: false },
+  {
+    href: "/",
+    label: "Overview",
+    icon: "space_dashboard",
+    exact: true,
+    matchPrefixes: ["/"],
+  },
   {
     href: "/asset-structure",
-    label: "Asset Structure",
+    label: "Asset Manager",
     icon: "account_tree",
     exact: false,
+    // The standalone /assets/new and /assets/[id]/edit forms have no section
+    // of their own anymore - they're reached only from within Asset Manager.
+    matchPrefixes: ["/asset-structure", "/assets"],
   },
 ];
 
@@ -34,7 +42,7 @@ const FOOTER_NAV_ITEMS: NavItem[] = [
     label: "Info",
     icon: "info",
     exact: false,
-    matchPrefix: "/info",
+    matchPrefixes: ["/info"],
   },
 ];
 
@@ -109,7 +117,7 @@ export function Sidebar() {
   function renderNavItem(item: NavItem) {
     const isActive = item.exact
       ? pathname === item.href
-      : pathname.startsWith(item.matchPrefix ?? item.href);
+      : item.matchPrefixes.some((prefix) => pathname.startsWith(prefix));
     return (
       <Link
         key={item.href}

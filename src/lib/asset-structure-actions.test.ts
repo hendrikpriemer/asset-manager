@@ -191,7 +191,7 @@ describe("deleteStructureNode", () => {
       where: { id: "node-1" },
     });
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
-    expect(revalidatePath).toHaveBeenCalledWith("/assets");
+    expect(revalidatePath).toHaveBeenCalledWith("/asset-structure/table");
   });
 });
 

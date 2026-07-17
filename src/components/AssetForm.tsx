@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import type { ActionState } from "@/lib/actions";
 import type { StructureOption } from "@/lib/asset-structure";
 import { Button } from "@/components/Button";
@@ -10,6 +11,7 @@ export function AssetForm({
   initialValues,
   structureOptions,
   submitLabel,
+  successHref,
 }: {
   action: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
   initialValues?: {
@@ -19,10 +21,28 @@ export function AssetForm({
   };
   structureOptions: StructureOption[];
   submitLabel: string;
+  /**
+   * Where to navigate on success. When omitted, navigates back (used to
+   * dismiss the intercepted modal per Next.js's parallel-routes convention).
+   */
+  successHref?: string;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(action, {
     error: null,
   });
+  const wasPending = useRef(false);
+
+  useEffect(() => {
+    if (wasPending.current && !pending && !state.error) {
+      if (successHref) {
+        router.push(successHref);
+      } else {
+        router.back();
+      }
+    }
+    wasPending.current = pending;
+  }, [pending, state, successHref, router]);
 
   return (
     <form action={formAction} className="flex max-w-md flex-col gap-4">

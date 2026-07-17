@@ -4,8 +4,10 @@ import { AssetForm } from "@/components/AssetForm";
 
 export function NewAssetSection({
   structureOptions,
+  successHref,
 }: {
   structureOptions: StructureOption[];
+  successHref?: string;
 }) {
   return (
     <>
@@ -14,6 +16,7 @@ export function NewAssetSection({
         action={createAsset}
         submitLabel="Create"
         structureOptions={structureOptions}
+        successHref={successHref}
       />
     </>
   );

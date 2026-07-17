@@ -3,6 +3,9 @@ import { render, screen } from "@testing-library/react";
 import { EditAssetSection } from "./EditAssetSection";
 
 vi.mock("@/lib/actions", () => ({ updateAsset: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
+}));
 
 describe("EditAssetSection", () => {
   it("renders a heading and the form prefilled with the asset", () => {

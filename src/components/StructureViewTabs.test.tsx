@@ -15,38 +15,64 @@ describe("StructureViewTabs", () => {
     render(<StructureViewTabs />);
 
     expect(
-      screen.getByRole("link", { name: "Hierarchy View" })
+      screen.getByRole("link", { name: "Asset Structure" })
     ).toHaveAttribute("href", "/asset-structure");
-    expect(screen.getByRole("link", { name: "Table View" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Assets" })).toHaveAttribute(
       "href",
       "/asset-structure/table"
     );
   });
 
-  it("marks Hierarchy View as active on /asset-structure", () => {
+  it("marks Asset Structure as active on /asset-structure", () => {
     usePathname.mockReturnValue("/asset-structure");
 
     render(<StructureViewTabs />);
 
     expect(
-      screen.getByRole("link", { name: "Hierarchy View" })
+      screen.getByRole("link", { name: "Asset Structure" })
     ).toHaveAttribute("aria-current", "page");
     expect(
-      screen.getByRole("link", { name: "Table View" })
+      screen.getByRole("link", { name: "Assets" })
     ).not.toHaveAttribute("aria-current");
   });
 
-  it("marks Table View as active on /asset-structure/table", () => {
+  it("marks Assets as active on /asset-structure/table", () => {
     usePathname.mockReturnValue("/asset-structure/table");
 
     render(<StructureViewTabs />);
 
-    expect(screen.getByRole("link", { name: "Table View" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Assets" })).toHaveAttribute(
       "aria-current",
       "page"
     );
     expect(
-      screen.getByRole("link", { name: "Hierarchy View" })
+      screen.getByRole("link", { name: "Asset Structure" })
+    ).not.toHaveAttribute("aria-current");
+  });
+
+  it("keeps Asset Structure active when viewing a structure node's detail page", () => {
+    usePathname.mockReturnValue("/asset-structure/site-1");
+
+    render(<StructureViewTabs />);
+
+    expect(
+      screen.getByRole("link", { name: "Asset Structure" })
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByRole("link", { name: "Assets" })
+    ).not.toHaveAttribute("aria-current");
+  });
+
+  it("keeps Asset Structure active when viewing an asset's detail page", () => {
+    usePathname.mockReturnValue("/asset-structure/asset/asset-1");
+
+    render(<StructureViewTabs />);
+
+    expect(
+      screen.getByRole("link", { name: "Asset Structure" })
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByRole("link", { name: "Assets" })
     ).not.toHaveAttribute("aria-current");
   });
 });

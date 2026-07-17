@@ -3,6 +3,9 @@ import { render, screen } from "@testing-library/react";
 import { NewAssetSection } from "./NewAssetSection";
 
 vi.mock("@/lib/actions", () => ({ createAsset: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
+}));
 
 describe("NewAssetSection", () => {
   it("renders a heading and the create form", () => {

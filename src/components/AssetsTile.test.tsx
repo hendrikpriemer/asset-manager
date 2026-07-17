@@ -3,10 +3,13 @@ import { render, screen } from "@testing-library/react";
 import { AssetsTile } from "./AssetsTile";
 
 describe("AssetsTile", () => {
-  it("links to /assets", () => {
+  it("links to /asset-structure/table", () => {
     render(<AssetsTile count={5} />);
 
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/assets");
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/asset-structure/table"
+    );
   });
 
   it("shows the Assets label and the count", () => {

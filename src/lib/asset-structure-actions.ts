@@ -90,7 +90,7 @@ export async function updateStructureNode(
 export async function deleteStructureNode(id: string): Promise<void> {
   await prisma.assetStructureNode.delete({ where: { id } });
   revalidatePath(STRUCTURE_PATH, "layout");
-  revalidatePath("/assets");
+  revalidatePath("/asset-structure/table");
 }
 
 async function moveStructureNode(

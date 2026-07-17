@@ -7,10 +7,12 @@ export function EditAssetSection({
   id,
   asset,
   structureOptions,
+  successHref,
 }: {
   id: string;
   asset: Pick<Asset, "name" | "description" | "structureNodeId">;
   structureOptions: StructureOption[];
+  successHref?: string;
 }) {
   return (
     <>
@@ -24,6 +26,7 @@ export function EditAssetSection({
         }}
         structureOptions={structureOptions}
         submitLabel="Save"
+        successHref={successHref}
       />
     </>
   );
