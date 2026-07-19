@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AssetWizard } from "./AssetWizard";
 import type { ActionState } from "@/lib/actions";
+import type { AasCheckResult } from "@/lib/aas-actions";
 import type { StructureOption } from "@/lib/asset-structure";
 
 const { createAsset, updateAsset } = vi.hoisted(() => ({
@@ -19,10 +20,19 @@ const { createAsset, updateAsset } = vi.hoisted(() => ({
       ) => Promise<ActionState>
     >(),
 }));
+const { checkAasReference } = vi.hoisted(() => ({
+  checkAasReference: vi.fn<
+    (reference: {
+      aasEndpointUrl: string;
+      aasGlobalAssetId: string;
+    }) => Promise<AasCheckResult>
+  >(),
+}));
 const back = vi.fn();
 const push = vi.fn();
 
 vi.mock("@/lib/actions", () => ({ createAsset, updateAsset }));
+vi.mock("@/lib/aas-actions", () => ({ checkAasReference }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ back, push }),
 }));
@@ -192,6 +202,82 @@ describe("AssetWizard (create mode)", () => {
     expect(screen.getByLabelText("AAS endpoint URL")).toHaveValue("");
     expect(screen.getByLabelText("Global asset ID")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Next step" })).toBeEnabled();
+  });
+
+  it("disables Test connection until an AAS reference field is filled", async () => {
+    render(<AssetWizard mode="create" structureOptions={[]} />);
+    await goToAasStep();
+
+    expect(
+      screen.getByRole("button", { name: "Test connection" })
+    ).toBeDisabled();
+
+    await userEvent
+      .setup()
+      .type(
+        screen.getByLabelText("AAS endpoint URL"),
+        "http://example.com/shells/abc"
+      );
+
+    expect(
+      screen.getByRole("button", { name: "Test connection" })
+    ).toBeEnabled();
+  });
+
+  it("shows the resolved idShort when Test connection succeeds", async () => {
+    checkAasReference.mockResolvedValue({
+      status: "resolved",
+      idShort: "TestLathe1",
+    });
+    render(<AssetWizard mode="create" structureOptions={[]} />);
+    const user = await goToAasStep();
+    await user.type(
+      screen.getByLabelText("AAS endpoint URL"),
+      "http://example.com/shells/abc"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Test connection" }));
+
+    expect(await screen.findByText("Resolved: TestLathe1")).toBeInTheDocument();
+    expect(checkAasReference).toHaveBeenCalledWith({
+      aasEndpointUrl: "http://example.com/shells/abc",
+      aasGlobalAssetId: "",
+    });
+  });
+
+  it("shows an error message when Test connection cannot resolve the reference", async () => {
+    checkAasReference.mockResolvedValue({ status: "unresolved" });
+    render(<AssetWizard mode="create" structureOptions={[]} />);
+    const user = await goToAasStep();
+    await user.type(
+      screen.getByLabelText("Global asset ID"),
+      "https://example.com/assets/abc"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Test connection" }));
+
+    expect(
+      await screen.findByText("Could not resolve this AAS reference.")
+    ).toBeInTheDocument();
+  });
+
+  it("clears the Test connection result when a field is edited again", async () => {
+    checkAasReference.mockResolvedValue({
+      status: "resolved",
+      idShort: "TestLathe1",
+    });
+    render(<AssetWizard mode="create" structureOptions={[]} />);
+    const user = await goToAasStep();
+    await user.type(
+      screen.getByLabelText("AAS endpoint URL"),
+      "http://example.com/shells/abc"
+    );
+    await user.click(screen.getByRole("button", { name: "Test connection" }));
+    await screen.findByText("Resolved: TestLathe1");
+
+    await user.type(screen.getByLabelText("AAS endpoint URL"), "2");
+
+    expect(screen.queryByText("Resolved: TestLathe1")).not.toBeInTheDocument();
   });
 
   it("goes back a step at a time and keeps the entered values", async () => {
