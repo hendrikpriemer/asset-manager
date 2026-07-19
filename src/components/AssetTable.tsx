@@ -2,13 +2,14 @@ import Link from "next/link";
 import type { AssetWithStructurePath } from "@/lib/asset-structure";
 import { deleteAsset } from "@/lib/actions";
 import { DeleteAssetButton } from "@/components/DeleteAssetButton";
+import { EmptyAssetsState } from "@/components/EmptyAssetsState";
 import { Icon } from "@/components/Icon";
 import { LevelBadge } from "@/components/LevelBadge";
 import { Tooltip } from "@/components/Tooltip";
 
 export function AssetTable({ assets }: { assets: AssetWithStructurePath[] }) {
   if (assets.length === 0) {
-    return <p className="md-body-large text-on-surface-variant">No assets yet.</p>;
+    return <EmptyAssetsState />;
   }
 
   return (

@@ -14,6 +14,8 @@ function makeAsset(
     name: "Laptop",
     description: "Work laptop",
     structureNodeId: null,
+    assetImageType: null,
+    nameplateImageType: null,
     structurePath: null,
     structureLevel: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -46,7 +48,9 @@ describe("SearchableAssetTable", () => {
   it("delegates to AssetTable's own empty state when there are no assets at all", () => {
     render(<SearchableAssetTable assets={[]} />);
 
-    expect(screen.getByText("No assets yet.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "No assets yet" })
+    ).toBeInTheDocument();
   });
 
   it("filters rows by name", async () => {

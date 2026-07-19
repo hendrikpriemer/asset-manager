@@ -9,7 +9,7 @@ export function StructureNodeDetail({
 }: {
   node: AssetStructureNode;
   breadcrumb: string[];
-  assets: Asset[];
+  assets: Omit<Asset, "assetImage" | "nameplateImage">[];
 }) {
   return (
     <div className="flex flex-col gap-4">

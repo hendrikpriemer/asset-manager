@@ -20,12 +20,16 @@ function makeNode(overrides: Partial<AssetStructureNode> = {}): AssetStructureNo
   };
 }
 
-function makeAsset(overrides: Partial<Asset> = {}): Asset {
+type StructureNodeAsset = Omit<Asset, "assetImage" | "nameplateImage">;
+
+function makeAsset(overrides: Partial<StructureNodeAsset> = {}): StructureNodeAsset {
   return {
     id: "asset-1",
     name: "Lathe",
     description: null,
     structureNodeId: null,
+    assetImageType: null,
+    nameplateImageType: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,

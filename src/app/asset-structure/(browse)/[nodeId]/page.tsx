@@ -25,6 +25,7 @@ export default async function AssetStructureNodePage({
   const assets = await prisma.asset.findMany({
     where: { structureNodeId: nodeId },
     orderBy: { updatedAt: "desc" },
+    omit: { assetImage: true, nameplateImage: true },
   });
 
   return <StructureNodeDetail node={node} breadcrumb={breadcrumb} assets={assets} />;

@@ -1,6 +1,5 @@
-import { createAsset } from "@/lib/actions";
+import { AssetWizard } from "@/components/AssetWizard";
 import type { StructureOption } from "@/lib/asset-structure";
-import { AssetForm } from "@/components/AssetForm";
 
 export function NewAssetSection({
   structureOptions,
@@ -10,14 +9,10 @@ export function NewAssetSection({
   successHref?: string;
 }) {
   return (
-    <>
-      <h1 className="md-headline-small text-on-surface">New Asset</h1>
-      <AssetForm
-        action={createAsset}
-        submitLabel="Create"
-        structureOptions={structureOptions}
-        successHref={successHref}
-      />
-    </>
+    <AssetWizard
+      mode="create"
+      structureOptions={structureOptions}
+      successHref={successHref}
+    />
   );
 }

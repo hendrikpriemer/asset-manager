@@ -1,7 +1,15 @@
 import type { Asset } from "@/generated/prisma/client";
-import { updateAsset } from "@/lib/actions";
+import { AssetWizard } from "@/components/AssetWizard";
 import type { StructureOption } from "@/lib/asset-structure";
-import { AssetForm } from "@/components/AssetForm";
+
+type EditableAsset = Pick<
+  Asset,
+  | "name"
+  | "description"
+  | "structureNodeId"
+  | "assetImageType"
+  | "nameplateImageType"
+>;
 
 export function EditAssetSection({
   id,
@@ -10,24 +18,27 @@ export function EditAssetSection({
   successHref,
 }: {
   id: string;
-  asset: Pick<Asset, "name" | "description" | "structureNodeId">;
+  asset: EditableAsset;
   structureOptions: StructureOption[];
   successHref?: string;
 }) {
   return (
-    <>
-      <h1 className="md-headline-small text-on-surface">Edit Asset</h1>
-      <AssetForm
-        action={updateAsset.bind(null, id)}
-        initialValues={{
-          name: asset.name,
-          description: asset.description,
-          structureNodeId: asset.structureNodeId,
-        }}
-        structureOptions={structureOptions}
-        submitLabel="Save"
-        successHref={successHref}
-      />
-    </>
+    <AssetWizard
+      mode="edit"
+      assetId={id}
+      initialName={asset.name}
+      initialDescription={asset.description ?? ""}
+      initialStructureNodeId={asset.structureNodeId ?? ""}
+      existingAssetImageUrl={
+        asset.assetImageType ? `/api/assets/${id}/images/asset` : null
+      }
+      existingNameplateImageUrl={
+        asset.nameplateImageType
+          ? `/api/assets/${id}/images/nameplate`
+          : null
+      }
+      structureOptions={structureOptions}
+      successHref={successHref}
+    />
   );
 }

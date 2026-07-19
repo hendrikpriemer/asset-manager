@@ -145,7 +145,10 @@ export function getUnassignedAssets(): Promise<StructureNodeAsset[]> {
   });
 }
 
-export type AssetWithStructurePath = Asset & {
+export type AssetWithStructurePath = Omit<
+  Asset,
+  "assetImage" | "nameplateImage"
+> & {
   structurePath: string | null;
   structureLevel: AssetStructureLevel | null;
 };
@@ -154,7 +157,10 @@ export async function getAssetsWithStructurePath(): Promise<
   AssetWithStructurePath[]
 > {
   const [assets, nodes] = await Promise.all([
-    prisma.asset.findMany({ orderBy: { updatedAt: "desc" } }),
+    prisma.asset.findMany({
+      orderBy: { updatedAt: "desc" },
+      omit: { assetImage: true, nameplateImage: true },
+    }),
     prisma.assetStructureNode.findMany({
       select: { id: true, name: true, parentId: true, level: true },
     }),

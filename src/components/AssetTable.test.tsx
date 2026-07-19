@@ -14,6 +14,8 @@ function makeAsset(
     name: "Laptop",
     description: "Work laptop",
     structureNodeId: null,
+    assetImageType: null,
+    nameplateImageType: null,
     structurePath: null,
     structureLevel: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -26,7 +28,9 @@ describe("AssetTable", () => {
   it("renders an empty state when there are no assets", () => {
     render(<AssetTable assets={[]} />);
 
-    expect(screen.getByText("No assets yet.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "No assets yet" })
+    ).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 

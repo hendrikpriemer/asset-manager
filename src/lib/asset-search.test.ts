@@ -157,6 +157,8 @@ describe("filterAssetsWithStructurePath", () => {
       name: "Sensor A",
       description: null,
       structureNodeId: null,
+      assetImageType: null,
+      nameplateImageType: null,
       createdAt: now,
       updatedAt: now,
       structurePath: null,

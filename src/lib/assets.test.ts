@@ -34,6 +34,7 @@ describe("getAssets", () => {
 
     expect(prisma.asset.findMany).toHaveBeenCalledWith({
       orderBy: { updatedAt: "desc" },
+      omit: { assetImage: true, nameplateImage: true },
     });
     expect(result).toEqual([{ id: "1" }]);
   });
@@ -47,6 +48,7 @@ describe("getAssetById", () => {
 
     expect(prisma.asset.findUnique).toHaveBeenCalledWith({
       where: { id: "1" },
+      omit: { assetImage: true, nameplateImage: true },
     });
     expect(result).toEqual({ id: "1" });
   });

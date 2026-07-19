@@ -295,6 +295,10 @@ describe("getAssetsWithStructurePath", () => {
 
     const result = await getAssetsWithStructurePath();
 
+    expect(prisma.asset.findMany).toHaveBeenCalledWith({
+      orderBy: { updatedAt: "desc" },
+      omit: { assetImage: true, nameplateImage: true },
+    });
     expect(result).toEqual([
       {
         id: "a1",

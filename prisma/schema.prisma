@@ -13,13 +13,17 @@ datasource db {
 }
 
 model Asset {
-  id              String              @id @default(cuid())
-  name            String
-  description     String?
-  structureNodeId String?
-  structureNode   AssetStructureNode? @relation(fields: [structureNodeId], references: [id], onDelete: SetNull)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id                 String              @id @default(cuid())
+  name               String
+  description        String?
+  structureNodeId    String?
+  structureNode      AssetStructureNode? @relation(fields: [structureNodeId], references: [id], onDelete: SetNull)
+  assetImage         Bytes?
+  assetImageType     String?
+  nameplateImage     Bytes?
+  nameplateImageType String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@index([structureNodeId])
 }
