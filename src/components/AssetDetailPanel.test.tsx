@@ -15,6 +15,8 @@ function makeAsset(overrides: Partial<AssetDetail> = {}): AssetDetail {
     structureNodeId: "site-1",
     assetImageType: null,
     nameplateImageType: null,
+    aasEndpointUrl: null,
+    aasGlobalAssetId: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -95,5 +97,89 @@ describe("AssetDetailPanel", () => {
       "/api/assets/asset-1/images/nameplate"
     );
     expect(screen.queryByAltText("Lathe photo")).not.toBeInTheDocument();
+  });
+
+  it("renders no AAS section when the asset has no AAS reference", () => {
+    render(<AssetDetailPanel asset={makeAsset()} structurePath={null} />);
+
+    expect(
+      screen.queryByText("Asset Administration Shell")
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a fallback message when an AAS reference is set but data could not be loaded", () => {
+    render(
+      <AssetDetailPanel
+        asset={makeAsset({ aasEndpointUrl: "http://example.com/shells/abc" })}
+        structurePath={null}
+        aasData={null}
+      />
+    );
+
+    expect(
+      screen.getByText("Asset Administration Shell")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("AAS data could not be loaded.")
+    ).toBeInTheDocument();
+  });
+
+  it("renders resolved AAS shell, submodel, and property data", () => {
+    render(
+      <AssetDetailPanel
+        asset={makeAsset({
+          aasGlobalAssetId: "https://asset-manager.example/assets/lathe-1",
+        })}
+        structurePath={null}
+        aasData={{
+          id: "https://asset-manager.example/aas/lathe-1",
+          idShort: "TestLathe1",
+          submodels: [
+            {
+              id: "https://asset-manager.example/sm/nameplate",
+              idShort: "Nameplate",
+              properties: [
+                { idShort: "ManufacturerName", value: "Acme Machine Works" },
+                { idShort: "YearOfConstruction", value: null },
+              ],
+            },
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByText("TestLathe1")).toBeInTheDocument();
+    expect(screen.getByText("Nameplate")).toBeInTheDocument();
+    expect(screen.getByText("ManufacturerName")).toBeInTheDocument();
+    expect(screen.getByText("Acme Machine Works")).toBeInTheDocument();
+    expect(screen.getByText("YearOfConstruction")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("falls back to the raw id when idShort is blank", () => {
+    render(
+      <AssetDetailPanel
+        asset={makeAsset({ aasEndpointUrl: "http://example.com/shells/abc" })}
+        structurePath={null}
+        aasData={{
+          id: "https://asset-manager.example/aas/lathe-1",
+          idShort: "",
+          submodels: [
+            {
+              id: "https://asset-manager.example/sm/nameplate",
+              idShort: "",
+              properties: [],
+            },
+          ],
+        }}
+      />
+    );
+
+    expect(
+      screen.getByText("https://asset-manager.example/aas/lathe-1")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("https://asset-manager.example/sm/nameplate")
+    ).toBeInTheDocument();
   });
 });

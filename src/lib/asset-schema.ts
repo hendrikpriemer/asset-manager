@@ -4,9 +4,20 @@ export type AssetInput = {
   name: string;
   description: string | null;
   structureNodeId: string | null;
+  aasEndpointUrl: string | null;
+  aasGlobalAssetId: string | null;
 };
 
 const MAX_NAME_LENGTH = 200;
+
+function parseOptionalTrimmedString(
+  formData: FormData,
+  fieldName: string
+): string | null {
+  const raw = formData.get(fieldName);
+  const trimmed = typeof raw === "string" ? raw.trim() : "";
+  return trimmed === "" ? null : trimmed;
+}
 
 export function parseAssetInput(formData: FormData): AssetInput {
   const rawName = formData.get("name");
@@ -21,10 +32,7 @@ export function parseAssetInput(formData: FormData): AssetInput {
     );
   }
 
-  const rawDescription = formData.get("description");
-  const trimmedDescription =
-    typeof rawDescription === "string" ? rawDescription.trim() : "";
-  const description = trimmedDescription === "" ? null : trimmedDescription;
+  const description = parseOptionalTrimmedString(formData, "description");
 
   const rawStructureNodeId = formData.get("structureNodeId");
   const structureNodeId =
@@ -32,5 +40,17 @@ export function parseAssetInput(formData: FormData): AssetInput {
       ? rawStructureNodeId
       : null;
 
-  return { name, description, structureNodeId };
+  const aasEndpointUrl = parseOptionalTrimmedString(formData, "aasEndpointUrl");
+  const aasGlobalAssetId = parseOptionalTrimmedString(
+    formData,
+    "aasGlobalAssetId"
+  );
+
+  return {
+    name,
+    description,
+    structureNodeId,
+    aasEndpointUrl,
+    aasGlobalAssetId,
+  };
 }

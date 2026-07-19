@@ -9,6 +9,8 @@ type EditableAsset = Pick<
   | "structureNodeId"
   | "assetImageType"
   | "nameplateImageType"
+  | "aasEndpointUrl"
+  | "aasGlobalAssetId"
 >;
 
 export function EditAssetSection({
@@ -29,6 +31,8 @@ export function EditAssetSection({
       initialName={asset.name}
       initialDescription={asset.description ?? ""}
       initialStructureNodeId={asset.structureNodeId ?? ""}
+      initialAasEndpointUrl={asset.aasEndpointUrl ?? ""}
+      initialAasGlobalAssetId={asset.aasGlobalAssetId ?? ""}
       existingAssetImageUrl={
         asset.assetImageType ? `/api/assets/${id}/images/asset` : null
       }

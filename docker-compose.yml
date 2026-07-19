@@ -29,5 +29,39 @@ services:
       db:
         condition: service_healthy
 
+  # --- AAS prototype (step 1 of the AAS integration) ---
+  # Local Eclipse BaSyx AAS Environment: bundles the AAS Repository, Submodel
+  # Repository, and ConceptDescription Repository in a single component, so
+  # we have something to create/fetch a test AAS against. Registry/Discovery
+  # are intentionally omitted for now - we only need a direct endpoint URL to
+  # reference from an Asset, not cross-system lookup yet.
+  basyx-mongo:
+    image: mongo:8
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: basyxMongoAdmin
+      MONGO_INITDB_ROOT_PASSWORD: basyxMongoPassword
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --username \"$$MONGO_INITDB_ROOT_USERNAME\" --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand({ ping: 1 })\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+    volumes:
+      - basyx-mongo-data:/data/db
+
+  basyx-aas-env:
+    image: eclipsebasyx/aas-environment:2.0.0-milestone-13
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: basyxMongoAdmin
+      MONGO_INITDB_ROOT_PASSWORD: basyxMongoPassword
+    volumes:
+      - ./basyx/aas-env.properties:/application/application.properties
+    ports:
+      - "8081:8081"
+    depends_on:
+      basyx-mongo:
+        condition: service_healthy
+
 volumes:
   pgdata:
+  basyx-mongo-data:

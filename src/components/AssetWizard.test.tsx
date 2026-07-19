@@ -61,8 +61,14 @@ async function goToAssignStep(name = "Sensor", description = "A sensor") {
   return user;
 }
 
-async function goToSummaryStep(name = "Sensor", description = "A sensor") {
+async function goToAasStep(name = "Sensor", description = "A sensor") {
   const user = await goToAssignStep(name, description);
+  await user.click(screen.getByRole("button", { name: "Next step" }));
+  return user;
+}
+
+async function goToSummaryStep(name = "Sensor", description = "A sensor") {
+  const user = await goToAasStep(name, description);
   await user.click(screen.getByRole("button", { name: "Next step" }));
   return user;
 }
@@ -85,13 +91,14 @@ describe("AssetWizard (create mode)", () => {
     expect(
       within(stepList).getByText("Assign to asset structure")
     ).toBeInTheDocument();
+    expect(within(stepList).getByText("AAS reference")).toBeInTheDocument();
     expect(within(stepList).getByText("Summary")).toBeInTheDocument();
   });
 
   it("shows the Identify step first, with Name and Description empty", () => {
     render(<AssetWizard mode="create" structureOptions={[]} />);
 
-    expect(screen.getByText("Step 1 of 4")).toBeInTheDocument();
+    expect(screen.getByText("Step 1 of 5")).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("");
     expect(screen.getByLabelText("Description")).toHaveValue("");
     expect(
@@ -128,7 +135,7 @@ describe("AssetWizard (create mode)", () => {
     const user = await fillIdentifyStep("Sensor", "A sensor");
     await user.click(screen.getByRole("button", { name: "Next step" }));
 
-    expect(screen.getByText("Step 2 of 4")).toBeInTheDocument();
+    expect(screen.getByText("Step 2 of 5")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Photos" })).toBeInTheDocument();
     expect(screen.getByText("Sensor")).toBeInTheDocument();
     expect(screen.getByText("Asset photo")).toBeInTheDocument();
@@ -140,7 +147,7 @@ describe("AssetWizard (create mode)", () => {
     render(<AssetWizard mode="create" structureOptions={[]} />);
     await goToAssignStep();
 
-    expect(screen.getByText("Step 3 of 4")).toBeInTheDocument();
+    expect(screen.getByText("Step 3 of 5")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Assign to asset structure" })
     ).toBeInTheDocument();
@@ -174,15 +181,28 @@ describe("AssetWizard (create mode)", () => {
     expect(screen.queryByLabelText("Structure")).not.toBeInTheDocument();
   });
 
+  it("advances to the AAS reference step, which is optional and empty by default", async () => {
+    render(<AssetWizard mode="create" structureOptions={[]} />);
+    await goToAasStep();
+
+    expect(screen.getByText("Step 4 of 5")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "AAS reference" })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("AAS endpoint URL")).toHaveValue("");
+    expect(screen.getByLabelText("Global asset ID")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Next step" })).toBeEnabled();
+  });
+
   it("goes back a step at a time and keeps the entered values", async () => {
     render(<AssetWizard mode="create" structureOptions={[]} />);
     const user = await goToAssignStep("Sensor", "A sensor");
 
     await user.click(screen.getByRole("button", { name: "Go back" }));
-    expect(screen.getByText("Step 2 of 4")).toBeInTheDocument();
+    expect(screen.getByText("Step 2 of 5")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Go back" }));
-    expect(screen.getByText("Step 1 of 4")).toBeInTheDocument();
+    expect(screen.getByText("Step 1 of 5")).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("Sensor");
     expect(screen.getByLabelText("Description")).toHaveValue("A sensor");
   });
@@ -201,8 +221,9 @@ describe("AssetWizard (create mode)", () => {
 
     await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Next step" }));
+    await user.click(screen.getByRole("button", { name: "Next step" }));
 
-    expect(screen.getByText("Step 4 of 4")).toBeInTheDocument();
+    expect(screen.getByText("Step 5 of 5")).toBeInTheDocument();
     const assetPhotoRow = screen.getByText("Asset photo").closest("div");
     expect(within(assetPhotoRow!).getByText("Provided")).toBeInTheDocument();
     expect(screen.getByText("Nameplate photo")).toBeInTheDocument();
@@ -213,17 +234,38 @@ describe("AssetWizard (create mode)", () => {
     const user = await goToAssignStep("Sensor", "A sensor");
     await user.selectOptions(screen.getByLabelText("Structure"), "site-1");
     await user.click(screen.getByRole("button", { name: "Next step" }));
+    await user.click(screen.getByRole("button", { name: "Next step" }));
 
-    expect(screen.getByText("Step 4 of 4")).toBeInTheDocument();
+    expect(screen.getByText("Step 5 of 5")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Summary" })
     ).toBeInTheDocument();
     expect(screen.getAllByText("Sensor")).toHaveLength(2);
     expect(screen.getByText("A sensor")).toBeInTheDocument();
     expect(screen.getByText("Acme / Plant A")).toBeInTheDocument();
+    expect(screen.getByText("Not linked")).toBeInTheDocument();
     expect(screen.getAllByText("Not provided")).toHaveLength(2);
     expect(
       screen.getByText("Review the details, then select Apply to create the asset.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows the entered AAS reference value in the summary", async () => {
+    render(<AssetWizard mode="create" structureOptions={[]} />);
+    const user = await goToAasStep("Sensor", "A sensor");
+    await user.type(
+      screen.getByLabelText("AAS endpoint URL"),
+      "http://example.com/shells/abc"
+    );
+    await user.click(screen.getByRole("button", { name: "Next step" }));
+
+    const aasDt = screen
+      .getAllByText("AAS reference")
+      .find((element) => element.tagName === "DT");
+    expect(
+      within(aasDt!.closest("div")!).getByText(
+        "http://example.com/shells/abc"
+      )
     ).toBeInTheDocument();
   });
 
@@ -239,6 +281,7 @@ describe("AssetWizard (create mode)", () => {
     const user = await goToAssignStep("Sensor", "A sensor");
     await user.selectOptions(screen.getByLabelText("Structure"), "site-1");
     await user.click(screen.getByRole("button", { name: "Next step" }));
+    await user.click(screen.getByRole("button", { name: "Next step" }));
 
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
@@ -247,9 +290,35 @@ describe("AssetWizard (create mode)", () => {
     expect(formData.get("name")).toBe("Sensor");
     expect(formData.get("description")).toBe("A sensor");
     expect(formData.get("structureNodeId")).toBe("site-1");
+    expect(formData.get("aasEndpointUrl")).toBe("");
+    expect(formData.get("aasGlobalAssetId")).toBe("");
     expect(formData.get("assetImage")).toBeNull();
     expect(formData.get("nameplateImage")).toBeNull();
     expect(updateAsset).not.toHaveBeenCalled();
+  });
+
+  it("includes entered AAS reference values in the submitted form data", async () => {
+    render(<AssetWizard mode="create" structureOptions={[]} />);
+    const user = await goToAasStep("Sensor", "A sensor");
+    await user.type(
+      screen.getByLabelText("AAS endpoint URL"),
+      "http://example.com/shells/abc"
+    );
+    await user.type(
+      screen.getByLabelText("Global asset ID"),
+      "https://example.com/assets/abc"
+    );
+    await user.click(screen.getByRole("button", { name: "Next step" }));
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(createAsset).toHaveBeenCalledTimes(1));
+    const [, formData] = createAsset.mock.calls[0];
+    expect(formData.get("aasEndpointUrl")).toBe(
+      "http://example.com/shells/abc"
+    );
+    expect(formData.get("aasGlobalAssetId")).toBe(
+      "https://example.com/assets/abc"
+    );
   });
 
   it("includes selected photos in the submitted form data", async () => {
@@ -271,6 +340,7 @@ describe("AssetWizard (create mode)", () => {
       screen.getByLabelText("Nameplate photo", { selector: "input" }),
       nameplateFile
     );
+    await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Next step" }));
 
@@ -355,6 +425,8 @@ describe("AssetWizard (edit mode)", () => {
         initialName="Lathe"
         initialDescription="Main lathe"
         initialStructureNodeId=""
+        initialAasEndpointUrl=""
+        initialAasGlobalAssetId=""
         existingAssetImageUrl={null}
         existingNameplateImageUrl={null}
         structureOptions={structureOptions}
@@ -384,6 +456,21 @@ describe("AssetWizard (edit mode)", () => {
 
     await goToAssignStep("Lathe", "Main lathe");
     expect(screen.getByLabelText("Structure")).toHaveValue("site-1");
+  });
+
+  it("pre-fills the AAS reference fields from the initial values", async () => {
+    renderEdit({
+      initialAasEndpointUrl: "http://example.com/shells/abc",
+      initialAasGlobalAssetId: "https://example.com/assets/abc",
+    });
+
+    await goToAasStep("Lathe", "Main lathe");
+    expect(screen.getByLabelText("AAS endpoint URL")).toHaveValue(
+      "http://example.com/shells/abc"
+    );
+    expect(screen.getByLabelText("Global asset ID")).toHaveValue(
+      "https://example.com/assets/abc"
+    );
   });
 
   it("shows the existing photos as previews in the Photos step", async () => {
@@ -435,6 +522,7 @@ describe("AssetWizard (edit mode)", () => {
 
     await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Next step" }));
+    await user.click(screen.getByRole("button", { name: "Next step" }));
     const assetPhotoRow = screen.getByText("Asset photo").closest("div");
     expect(
       within(assetPhotoRow!).getByText("Not provided")
@@ -456,6 +544,7 @@ describe("AssetWizard (edit mode)", () => {
     await user.click(screen.getByRole("button", { name: "Next step" }));
 
     await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -480,6 +569,7 @@ describe("AssetWizard (edit mode)", () => {
       newFile
     );
 
+    await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Save" }));

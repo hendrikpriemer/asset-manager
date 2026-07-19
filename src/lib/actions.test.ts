@@ -40,6 +40,8 @@ describe("createAsset", () => {
         name: "Laptop",
         description: "Work",
         structureNodeId: null,
+        aasEndpointUrl: null,
+        aasGlobalAssetId: null,
         assetImage: null,
         assetImageType: null,
         nameplateImage: null,
@@ -138,7 +140,13 @@ describe("updateAsset", () => {
     expect(result).toEqual({ error: null });
     expect(prisma.asset.update).toHaveBeenCalledWith({
       where: { id: "asset-1" },
-      data: { name: "Laptop", description: "Work", structureNodeId: null },
+      data: {
+        name: "Laptop",
+        description: "Work",
+        structureNodeId: null,
+        aasEndpointUrl: null,
+        aasGlobalAssetId: null,
+      },
     });
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure/table");
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
@@ -161,7 +169,13 @@ describe("updateAsset", () => {
 
     expect(prisma.asset.update).toHaveBeenCalledWith({
       where: { id: "asset-1" },
-      data: { name: "Laptop", description: "Work", structureNodeId: null },
+      data: {
+        name: "Laptop",
+        description: "Work",
+        structureNodeId: null,
+        aasEndpointUrl: null,
+        aasGlobalAssetId: null,
+      },
     });
   });
 

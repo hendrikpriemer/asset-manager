@@ -19,6 +19,8 @@ describe("EditAssetSection", () => {
           structureNodeId: "site-1",
           assetImageType: null,
           nameplateImageType: null,
+          aasEndpointUrl: null,
+          aasGlobalAssetId: null,
         }}
         structureOptions={[{ id: "site-1", label: "Plant A" }]}
       />
@@ -42,6 +44,8 @@ describe("EditAssetSection", () => {
           structureNodeId: null,
           assetImageType: null,
           nameplateImageType: null,
+          aasEndpointUrl: null,
+          aasGlobalAssetId: null,
         }}
         structureOptions={[{ id: "site-1", label: "Plant A" }]}
       />
@@ -65,6 +69,8 @@ describe("EditAssetSection", () => {
           structureNodeId: null,
           assetImageType: "image/jpeg",
           nameplateImageType: "image/png",
+          aasEndpointUrl: null,
+          aasGlobalAssetId: null,
         }}
         structureOptions={[]}
       />
@@ -93,6 +99,8 @@ describe("EditAssetSection", () => {
           structureNodeId: null,
           assetImageType: null,
           nameplateImageType: null,
+          aasEndpointUrl: null,
+          aasGlobalAssetId: null,
         }}
         structureOptions={[]}
       />
@@ -102,5 +110,35 @@ describe("EditAssetSection", () => {
 
     expect(screen.queryByAltText("Asset photo")).not.toBeInTheDocument();
     expect(screen.queryByAltText("Nameplate photo")).not.toBeInTheDocument();
+  });
+
+  it("prefills the AAS reference fields with the asset's existing values", async () => {
+    const user = userEvent.setup();
+    render(
+      <EditAssetSection
+        id="asset-1"
+        asset={{
+          name: "Lathe",
+          description: "Main lathe",
+          structureNodeId: null,
+          assetImageType: null,
+          nameplateImageType: null,
+          aasEndpointUrl: "http://example.com/shells/abc",
+          aasGlobalAssetId: "https://example.com/assets/abc",
+        }}
+        structureOptions={[]}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next step" }));
+    await user.click(screen.getByRole("button", { name: "Next step" }));
+    await user.click(screen.getByRole("button", { name: "Next step" }));
+
+    expect(screen.getByLabelText("AAS endpoint URL")).toHaveValue(
+      "http://example.com/shells/abc"
+    );
+    expect(screen.getByLabelText("Global asset ID")).toHaveValue(
+      "https://example.com/assets/abc"
+    );
   });
 });

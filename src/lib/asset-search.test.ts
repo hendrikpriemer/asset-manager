@@ -159,6 +159,8 @@ describe("filterAssetsWithStructurePath", () => {
       structureNodeId: null,
       assetImageType: null,
       nameplateImageType: null,
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
       createdAt: now,
       updatedAt: now,
       structurePath: null,

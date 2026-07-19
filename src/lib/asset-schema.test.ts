@@ -20,6 +20,8 @@ describe("parseAssetInput", () => {
       name: "Laptop",
       description: "A work laptop",
       structureNodeId: null,
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
     });
   });
 
@@ -30,6 +32,8 @@ describe("parseAssetInput", () => {
       name: "Laptop",
       description: null,
       structureNodeId: null,
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
     });
   });
 
@@ -40,6 +44,8 @@ describe("parseAssetInput", () => {
       name: "Laptop",
       description: null,
       structureNodeId: null,
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
     });
   });
 
@@ -50,6 +56,8 @@ describe("parseAssetInput", () => {
       name: "Laptop",
       description: null,
       structureNodeId: "node-1",
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
     });
   });
 
@@ -60,6 +68,40 @@ describe("parseAssetInput", () => {
       name: "Laptop",
       description: null,
       structureNodeId: null,
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
+    });
+  });
+
+  it("returns trimmed aasEndpointUrl and aasGlobalAssetId when both are provided", () => {
+    const formData = formDataWith({
+      name: "Laptop",
+      aasEndpointUrl: "  http://example.com/shells/abc  ",
+      aasGlobalAssetId: "  https://example.com/assets/abc  ",
+    });
+
+    expect(parseAssetInput(formData)).toEqual({
+      name: "Laptop",
+      description: null,
+      structureNodeId: null,
+      aasEndpointUrl: "http://example.com/shells/abc",
+      aasGlobalAssetId: "https://example.com/assets/abc",
+    });
+  });
+
+  it("returns a null aasEndpointUrl and aasGlobalAssetId when both are whitespace only", () => {
+    const formData = formDataWith({
+      name: "Laptop",
+      aasEndpointUrl: "   ",
+      aasGlobalAssetId: "   ",
+    });
+
+    expect(parseAssetInput(formData)).toEqual({
+      name: "Laptop",
+      description: null,
+      structureNodeId: null,
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
     });
   });
 
@@ -92,6 +134,8 @@ describe("parseAssetInput", () => {
       name,
       description: null,
       structureNodeId: null,
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
     });
   });
 });
