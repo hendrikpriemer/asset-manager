@@ -45,6 +45,16 @@ const nameplateSubmodel = {
   ],
 };
 
+async function fetchOne(
+  url: string,
+  matchers: Record<string, unknown>
+): Promise<Response> {
+  for (const [key, body] of Object.entries(matchers)) {
+    if (url === key) return jsonResponse(body);
+  }
+  throw new Error(`unexpected URL: ${url}`);
+}
+
 beforeEach(() => {
   prisma.aasRepository.findMany.mockReset().mockResolvedValue([]);
 });
@@ -90,10 +100,16 @@ describe("getAasData", () => {
         {
           id: nameplateSubmodel.id,
           idShort: "Nameplate",
+          displayName: null,
+          description: null,
+          templateName: null,
+          version: null,
           properties: [
             { idShort: "ManufacturerName", value: "Acme Machine Works" },
             { idShort: "YearOfConstruction", value: "2019" },
           ],
+          files: [],
+          groups: [],
         },
       ],
     });
@@ -325,6 +341,120 @@ describe("getAasData", () => {
     expect(result?.submodels[0].properties).toEqual([]);
   });
 
+  it("extracts a top-level File element with its contentType", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: "https://example.com/sm/docs" }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode("https://example.com/sm/docs")}`) {
+        return jsonResponse({
+          id: "https://example.com/sm/docs",
+          idShort: "Documentation",
+          submodelElements: [
+            {
+              modelType: "File",
+              idShort: "Datasheet",
+              contentType: "application/pdf",
+              value: "https://example.com/files/datasheet.pdf",
+            },
+          ],
+        });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].files).toEqual([
+      {
+        idShort: "Datasheet",
+        contentType: "application/pdf",
+        value: "https://example.com/files/datasheet.pdf",
+      },
+    ]);
+  });
+
+  it("puts a File element nested inside a SubmodelElementCollection into that group, not the top level", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: "https://example.com/sm/mcad" }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode("https://example.com/sm/mcad")}`) {
+        return jsonResponse({
+          id: "https://example.com/sm/mcad",
+          idShort: "MCAD",
+          submodelElements: [
+            {
+              modelType: "SubmodelElementCollection",
+              idShort: "Document00_STEP",
+              value: [
+                {
+                  modelType: "File",
+                  idShort: "DigitalFile",
+                  contentType: "application/step",
+                  value: "https://example.com/files/part.stp",
+                },
+              ],
+            },
+          ],
+        });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].files).toEqual([]);
+    expect(result?.submodels[0].groups).toEqual([
+      {
+        idShort: "Document00_STEP",
+        displayName: null,
+        properties: [],
+        files: [
+          {
+            idShort: "DigitalFile",
+            contentType: "application/step",
+            value: "https://example.com/files/part.stp",
+          },
+        ],
+        groups: [],
+      },
+    ]);
+  });
+
+  it("defaults a File element's value and contentType to null when malformed", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: "https://example.com/sm/odd-file" }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode("https://example.com/sm/odd-file")}`) {
+        return jsonResponse({
+          id: "https://example.com/sm/odd-file",
+          submodelElements: [{ modelType: "File" }],
+        });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].files).toEqual([
+      { idShort: "", value: null, contentType: null },
+    ]);
+  });
+
   it("keeps an endpoint URL without a /shells/ segment unchanged as the base URL", async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === "http://vendor.example/custom-shell-path") return jsonResponse(shell);
@@ -356,7 +486,7 @@ describe("getAasData", () => {
     expect(result?.idShort).toBe("");
   });
 
-  it("recurses into SubmodelElementCollections, qualifying nested property idShorts with their collection path", async () => {
+  it("nests properties into a group matching their SubmodelElementCollection, and folds MultiLanguageProperty in as a property", async () => {
     const technicalData = {
       modelType: "Submodel",
       id: "https://example.com/sm/technical-data",
@@ -370,7 +500,10 @@ describe("getAasData", () => {
             {
               modelType: "MultiLanguageProperty",
               idShort: "ManufacturerProductDesignation",
-              value: [],
+              value: [
+                { language: "de", text: "Servoantrieb" },
+                { language: "en", text: "Servo drive" },
+              ],
             },
           ],
         },
@@ -396,12 +529,79 @@ describe("getAasData", () => {
     const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
 
     expect(result?.submodels[0].properties).toEqual([
-      { idShort: "GeneralInformation / ManufacturerName", value: "WAGO" },
       { idShort: "TopLevelProp", value: "top" },
+    ]);
+    expect(result?.submodels[0].groups).toEqual([
+      {
+        idShort: "GeneralInformation",
+        displayName: null,
+        properties: [
+          { idShort: "ManufacturerName", value: "WAGO" },
+          { idShort: "ManufacturerProductDesignation", value: "Servo drive" },
+        ],
+        files: [],
+        groups: [],
+      },
     ]);
   });
 
-  it("qualifies a property's idShort with the full path through multiple nested collections", async () => {
+  it("falls back to the first available language for a MultiLanguageProperty when English is absent", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: "https://example.com/sm/mlp" }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode("https://example.com/sm/mlp")}`) {
+        return jsonResponse({
+          id: "https://example.com/sm/mlp",
+          submodelElements: [
+            {
+              modelType: "MultiLanguageProperty",
+              idShort: "ProductFamily",
+              value: [{ language: "de", text: "CMMT-AS" }],
+            },
+          ],
+        });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].properties).toEqual([
+      { idShort: "ProductFamily", value: "CMMT-AS" },
+    ]);
+  });
+
+  it("defaults a MultiLanguageProperty's value to null when it has no language entries", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: "https://example.com/sm/mlp-empty" }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode("https://example.com/sm/mlp-empty")}`) {
+        return jsonResponse({
+          id: "https://example.com/sm/mlp-empty",
+          submodelElements: [
+            { modelType: "MultiLanguageProperty", idShort: "Empty", value: [] },
+          ],
+        });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].properties).toEqual([{ idShort: "Empty", value: null }]);
+  });
+
+  it("nests groups to match multiple levels of SubmodelElementCollection", async () => {
     const deepSubmodel = {
       id: "https://example.com/sm/deep",
       submodelElements: [
@@ -434,12 +634,26 @@ describe("getAasData", () => {
 
     const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
 
-    expect(result?.submodels[0].properties).toEqual([
-      { idShort: "Outer / Inner / Leaf", value: "deep-value" },
+    expect(result?.submodels[0].groups).toEqual([
+      {
+        idShort: "Outer",
+        displayName: null,
+        properties: [],
+        files: [],
+        groups: [
+          {
+            idShort: "Inner",
+            displayName: null,
+            properties: [{ idShort: "Leaf", value: "deep-value" }],
+            files: [],
+            groups: [],
+          },
+        ],
+      },
     ]);
   });
 
-  it("treats a SubmodelElementCollection with a non-array value as having no nested properties", async () => {
+  it("treats a SubmodelElementCollection with a non-array value as an empty group", async () => {
     const brokenSubmodel = {
       id: "https://example.com/sm/broken",
       submodelElements: [
@@ -462,7 +676,9 @@ describe("getAasData", () => {
 
     const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
 
-    expect(result?.submodels[0].properties).toEqual([]);
+    expect(result?.submodels[0].groups).toEqual([
+      { idShort: "Broken", displayName: null, properties: [], files: [], groups: [] },
+    ]);
   });
 
   it("stops recursing into collections nested deeper than the max depth", async () => {
@@ -477,7 +693,8 @@ describe("getAasData", () => {
       };
     }
     // 11 levels of nesting: the leaf Property ends up processed at depth 11,
-    // one past MAX_COLLECTION_DEPTH (10), so it must be pruned.
+    // one past MAX_COLLECTION_DEPTH (10), so that innermost group must come
+    // back empty (pruned before its Property is ever read).
     const tooDeepSubmodel = {
       id: "https://example.com/sm/too-deep",
       submodelElements: [nestedCollection(11)],
@@ -498,7 +715,16 @@ describe("getAasData", () => {
 
     const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
 
-    expect(result?.submodels[0].properties).toEqual([]);
+    function deepestGroup(group: { groups: unknown[] }): unknown {
+      const groups = group.groups as { groups: unknown[] }[];
+      return groups.length > 0 ? deepestGroup(groups[0]) : group;
+    }
+    const innermost = deepestGroup(result!.submodels[0]) as {
+      properties: unknown[];
+      groups: unknown[];
+    };
+    expect(innermost.properties).toEqual([]);
+    expect(innermost.groups).toEqual([]);
   });
 
   it("defaults a submodel's id to an empty string when missing", async () => {
@@ -520,5 +746,180 @@ describe("getAasData", () => {
 
     expect(result?.submodels[0].id).toBe("");
     expect(result?.submodels[0].idShort).toBe("NoId");
+  });
+
+  describe("submodel display metadata", () => {
+    async function submodelResult(submodel: Record<string, unknown>) {
+      const fetchMock = vi.fn(async (url: string) =>
+        fetchOne(url, {
+          "http://vendor.example/shells/abc": shell,
+          [`http://vendor.example/shells/${encode(shell.id)}/submodel-refs`]: {
+            result: [{ keys: [{ type: "Submodel", value: submodel.id }] }],
+          },
+          [`http://vendor.example/submodels/${encode(submodel.id as string)}`]: submodel,
+        })
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+      return result!.submodels[0];
+    }
+
+    it("prefers the English displayName entry", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        idShort: "Nameplate",
+        displayName: [
+          { language: "de", text: "Typenschild" },
+          { language: "en", text: "Nameplate" },
+        ],
+      });
+
+      expect(submodel.displayName).toBe("Nameplate");
+    });
+
+    it("falls back to the first displayName entry when English is absent", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        displayName: [{ language: "de", text: "Typenschild" }],
+      });
+
+      expect(submodel.displayName).toBe("Typenschild");
+    });
+
+    it("returns a null displayName when the submodel has none", async () => {
+      const submodel = await submodelResult({ id: "https://example.com/sm/1" });
+
+      expect(submodel.displayName).toBeNull();
+    });
+
+    it("prefers the English description entry", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        description: [
+          { language: "de", text: "Enthält Typenschildinformationen" },
+          { language: "en", text: "Contains nameplate information" },
+        ],
+      });
+
+      expect(submodel.description).toBe("Contains nameplate information");
+    });
+
+    it("resolves the version from administration.version and revision", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        administration: { version: "1", revision: "2" },
+      });
+
+      expect(submodel.version).toBe("1.2");
+    });
+
+    it("resolves the version from administration.version alone when there is no revision", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        administration: { version: "1" },
+      });
+
+      expect(submodel.version).toBe("1");
+    });
+
+    it("resolves the templateName and version from a known IDTA/ZVEI semanticId when administration is absent", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        idShort: "Nameplate",
+        semanticId: {
+          keys: [{ type: "GlobalReference", value: "https://admin-shell.io/zvei/nameplate/2/0/Nameplate" }],
+        },
+      });
+
+      expect(submodel.templateName).toBe("Digital Nameplate for industrial equipment");
+      expect(submodel.version).toBe("2.0");
+    });
+
+    it("resolves the version from the semanticId's own version/revision segment when the semanticId isn't a known template", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        semanticId: {
+          keys: [{ type: "GlobalReference", value: "https://example.com/some/vendor/schema/3/1" }],
+        },
+      });
+
+      expect(submodel.templateName).toBeNull();
+      expect(submodel.version).toBe("3.1");
+    });
+
+    it("returns a null version when nothing yields one", async () => {
+      const submodel = await submodelResult({ id: "https://example.com/sm/1" });
+
+      expect(submodel.version).toBeNull();
+    });
+
+    it("ignores an administration object with no version", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        administration: { revision: "2" },
+      });
+
+      expect(submodel.version).toBeNull();
+    });
+
+    it("returns a null version when the semanticId doesn't contain a version/revision segment", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        semanticId: {
+          keys: [{ type: "GlobalReference", value: "https://example.com/some/vendor/schema" }],
+        },
+      });
+
+      expect(submodel.version).toBeNull();
+    });
+
+    it("ignores a semanticId with no keys", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        semanticId: { keys: [] },
+      });
+
+      expect(submodel.templateName).toBeNull();
+      expect(submodel.version).toBeNull();
+    });
+
+    it("ignores a non-object semanticId", async () => {
+      const submodel = await submodelResult({
+        id: "https://example.com/sm/1",
+        semanticId: "not-an-object",
+      });
+
+      expect(submodel.templateName).toBeNull();
+    });
+  });
+
+  describe("group displayName resolution", () => {
+    it("uses a SubmodelElementCollection's own displayName when present", async () => {
+      const submodel = {
+        id: "https://example.com/sm/1",
+        submodelElements: [
+          {
+            modelType: "SubmodelElementCollection",
+            idShort: "GeneralInformation",
+            displayName: [{ language: "en", text: "General Information" }],
+            value: [],
+          },
+        ],
+      };
+      const fetchMock = vi.fn(async (url: string) =>
+        fetchOne(url, {
+          "http://vendor.example/shells/abc": shell,
+          [`http://vendor.example/shells/${encode(shell.id)}/submodel-refs`]: {
+            result: [{ keys: [{ type: "Submodel", value: submodel.id }] }],
+          },
+          [`http://vendor.example/submodels/${encode(submodel.id)}`]: submodel,
+        })
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+      expect(result?.submodels[0].groups[0].displayName).toBe("General Information");
+    });
   });
 });

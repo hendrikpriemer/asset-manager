@@ -124,7 +124,7 @@ describe("AssetDetailPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders resolved AAS shell, submodel, and property data", () => {
+  it("renders the resolved shell idShort and delegates submodels to AasViewer", () => {
     render(
       <AssetDetailPanel
         asset={makeAsset({
@@ -138,10 +138,15 @@ describe("AssetDetailPanel", () => {
             {
               id: "https://asset-manager.example/sm/nameplate",
               idShort: "Nameplate",
+              displayName: null,
+              description: null,
+              templateName: null,
+              version: null,
               properties: [
                 { idShort: "ManufacturerName", value: "Acme Machine Works" },
-                { idShort: "YearOfConstruction", value: null },
               ],
+              files: [],
+              groups: [],
             },
           ],
         }}
@@ -149,14 +154,12 @@ describe("AssetDetailPanel", () => {
     );
 
     expect(screen.getByText("TestLathe1")).toBeInTheDocument();
-    expect(screen.getByText("Nameplate")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Nameplate" })).toBeInTheDocument();
     expect(screen.getByText("ManufacturerName")).toBeInTheDocument();
     expect(screen.getByText("Acme Machine Works")).toBeInTheDocument();
-    expect(screen.getByText("YearOfConstruction")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("falls back to the raw id when idShort is blank", () => {
+  it("falls back to the raw id when the shell idShort is blank", () => {
     render(
       <AssetDetailPanel
         asset={makeAsset({ aasEndpointUrl: "http://example.com/shells/abc" })}
@@ -164,22 +167,13 @@ describe("AssetDetailPanel", () => {
         aasData={{
           id: "https://asset-manager.example/aas/lathe-1",
           idShort: "",
-          submodels: [
-            {
-              id: "https://asset-manager.example/sm/nameplate",
-              idShort: "",
-              properties: [],
-            },
-          ],
+          submodels: [],
         }}
       />
     );
 
     expect(
       screen.getByText("https://asset-manager.example/aas/lathe-1")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("https://asset-manager.example/sm/nameplate")
     ).toBeInTheDocument();
   });
 });
