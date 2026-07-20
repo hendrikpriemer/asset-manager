@@ -19,6 +19,27 @@ function parseOptionalTrimmedString(
   return trimmed === "" ? null : trimmed;
 }
 
+/**
+ * A single "AAS reference" input is either a direct endpoint URL or a
+ * globalAssetId to look up in the configured AAS repository. The AAS REST
+ * API always exposes a shell at a `/shells/{id}` path, while a
+ * globalAssetId is just an identifier the asset owner assigned - so the
+ * presence of a `/shells/` segment reliably tells the two apart.
+ */
+export function classifyAasReference(rawValue: string): {
+  aasEndpointUrl: string | null;
+  aasGlobalAssetId: string | null;
+} {
+  const value = rawValue.trim();
+  if (value === "") {
+    return { aasEndpointUrl: null, aasGlobalAssetId: null };
+  }
+  if (value.includes("/shells/")) {
+    return { aasEndpointUrl: value, aasGlobalAssetId: null };
+  }
+  return { aasEndpointUrl: null, aasGlobalAssetId: value };
+}
+
 export function parseAssetInput(formData: FormData): AssetInput {
   const rawName = formData.get("name");
   const name = typeof rawName === "string" ? rawName.trim() : "";
@@ -40,10 +61,9 @@ export function parseAssetInput(formData: FormData): AssetInput {
       ? rawStructureNodeId
       : null;
 
-  const aasEndpointUrl = parseOptionalTrimmedString(formData, "aasEndpointUrl");
-  const aasGlobalAssetId = parseOptionalTrimmedString(
-    formData,
-    "aasGlobalAssetId"
+  const rawAasReference = formData.get("aasReference");
+  const { aasEndpointUrl, aasGlobalAssetId } = classifyAasReference(
+    typeof rawAasReference === "string" ? rawAasReference : ""
   );
 
   return {

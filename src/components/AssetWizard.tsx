@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { createAsset, updateAsset } from "@/lib/actions";
+import { classifyAasReference } from "@/lib/asset-schema";
 import { checkAasReference, type AasCheckResult } from "@/lib/aas-actions";
 import type { StructureOption } from "@/lib/asset-structure";
 import { Button } from "@/components/Button";
@@ -37,8 +38,7 @@ type AssetWizardProps = {
       initialName: string;
       initialDescription: string;
       initialStructureNodeId: string;
-      initialAasEndpointUrl: string;
-      initialAasGlobalAssetId: string;
+      initialAasReference: string;
       existingAssetImageUrl: string | null;
       existingNameplateImageUrl: string | null;
     }
@@ -56,11 +56,8 @@ export function AssetWizard(props: AssetWizardProps) {
   const [structureNodeId, setStructureNodeId] = useState(
     isEdit ? props.initialStructureNodeId : ""
   );
-  const [aasEndpointUrl, setAasEndpointUrl] = useState(
-    isEdit ? props.initialAasEndpointUrl : ""
-  );
-  const [aasGlobalAssetId, setAasGlobalAssetId] = useState(
-    isEdit ? props.initialAasGlobalAssetId : ""
+  const [aasReference, setAasReference] = useState(
+    isEdit ? props.initialAasReference : ""
   );
   const [aasCheckResult, setAasCheckResult] = useState<AasCheckResult | null>(
     null
@@ -121,22 +118,16 @@ export function AssetWizard(props: AssetWizardProps) {
     setNameplateImageRemoved(file === null);
   }
 
-  function handleAasEndpointUrlChange(value: string) {
-    setAasEndpointUrl(value);
-    setAasCheckResult(null);
-  }
-
-  function handleAasGlobalAssetIdChange(value: string) {
-    setAasGlobalAssetId(value);
+  function handleAasReferenceChange(value: string) {
+    setAasReference(value);
     setAasCheckResult(null);
   }
 
   function handleCheckAas() {
     startAasCheck(async () => {
-      const result = await checkAasReference({
-        aasEndpointUrl,
-        aasGlobalAssetId,
-      });
+      const result = await checkAasReference(
+        classifyAasReference(aasReference)
+      );
       setAasCheckResult(result);
     });
   }
@@ -146,8 +137,7 @@ export function AssetWizard(props: AssetWizardProps) {
     formData.set("name", name);
     formData.set("description", description);
     formData.set("structureNodeId", structureNodeId);
-    formData.set("aasEndpointUrl", aasEndpointUrl);
-    formData.set("aasGlobalAssetId", aasGlobalAssetId);
+    formData.set("aasReference", aasReference);
     if (assetImageFile) {
       formData.set("assetImage", assetImageFile);
     } else if (isEdit && assetImageRemoved) {
@@ -312,30 +302,19 @@ export function AssetWizard(props: AssetWizardProps) {
               </h2>
               <p className="md-body-medium text-on-surface-variant">
                 Optionally link this asset to an Asset Administration Shell
-                (AAS), either via a direct endpoint URL or a global asset ID
-                looked up in the configured AAS repository. You can skip this
-                step. If both are provided, the endpoint URL is used.
+                (AAS) by entering either a direct endpoint URL or a global
+                asset ID to look up in the configured AAS repository - we
+                detect which one you entered. You can skip this step.
               </p>
             </div>
             <label className="flex flex-col gap-1 md-body-small text-on-surface-variant">
-              AAS endpoint URL
+              AAS endpoint URL or global asset ID
               <input
-                value={aasEndpointUrl}
+                value={aasReference}
                 onChange={(event) =>
-                  handleAasEndpointUrlChange(event.target.value)
+                  handleAasReferenceChange(event.target.value)
                 }
-                placeholder="https://aas-repo.example.com/shells/..."
-                className={FIELD_CLASSES}
-              />
-            </label>
-            <label className="flex flex-col gap-1 md-body-small text-on-surface-variant">
-              Global asset ID
-              <input
-                value={aasGlobalAssetId}
-                onChange={(event) =>
-                  handleAasGlobalAssetIdChange(event.target.value)
-                }
-                placeholder="https://example.com/assets/..."
+                placeholder="https://aas-repo.example.com/shells/... or https://example.com/assets/..."
                 className={FIELD_CLASSES}
               />
             </label>
@@ -344,9 +323,7 @@ export function AssetWizard(props: AssetWizardProps) {
                 type="button"
                 variant="text"
                 onClick={handleCheckAas}
-                disabled={
-                  isCheckingAas || (!aasEndpointUrl && !aasGlobalAssetId)
-                }
+                disabled={isCheckingAas || !aasReference}
               >
                 {isCheckingAas ? "Checking…" : "Test connection"}
               </Button>
@@ -399,7 +376,7 @@ export function AssetWizard(props: AssetWizardProps) {
                   AAS reference
                 </dt>
                 <dd className="md-body-medium text-on-surface-variant">
-                  {aasEndpointUrl || aasGlobalAssetId || "Not linked"}
+                  {aasReference || "Not linked"}
                 </dd>
               </div>
               <div>

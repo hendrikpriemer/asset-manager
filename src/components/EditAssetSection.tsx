@@ -31,8 +31,7 @@ export function EditAssetSection({
       initialName={asset.name}
       initialDescription={asset.description ?? ""}
       initialStructureNodeId={asset.structureNodeId ?? ""}
-      initialAasEndpointUrl={asset.aasEndpointUrl ?? ""}
-      initialAasGlobalAssetId={asset.aasGlobalAssetId ?? ""}
+      initialAasReference={asset.aasEndpointUrl ?? asset.aasGlobalAssetId ?? ""}
       existingAssetImageUrl={
         asset.assetImageType ? `/api/assets/${id}/images/asset` : null
       }

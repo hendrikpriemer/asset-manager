@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseAssetInput, AssetValidationError } from "./asset-schema";
+import {
+  parseAssetInput,
+  classifyAasReference,
+  AssetValidationError,
+} from "./asset-schema";
 
 function formDataWith(fields: Record<string, string>): FormData {
   const formData = new FormData();
@@ -73,11 +77,10 @@ describe("parseAssetInput", () => {
     });
   });
 
-  it("returns trimmed aasEndpointUrl and aasGlobalAssetId when both are provided", () => {
+  it("classifies an aasReference containing /shells/ as an endpoint URL", () => {
     const formData = formDataWith({
       name: "Laptop",
-      aasEndpointUrl: "  http://example.com/shells/abc  ",
-      aasGlobalAssetId: "  https://example.com/assets/abc  ",
+      aasReference: "  http://example.com/shells/abc  ",
     });
 
     expect(parseAssetInput(formData)).toEqual({
@@ -85,16 +88,27 @@ describe("parseAssetInput", () => {
       description: null,
       structureNodeId: null,
       aasEndpointUrl: "http://example.com/shells/abc",
+      aasGlobalAssetId: null,
+    });
+  });
+
+  it("classifies an aasReference without /shells/ as a globalAssetId", () => {
+    const formData = formDataWith({
+      name: "Laptop",
+      aasReference: "  https://example.com/assets/abc  ",
+    });
+
+    expect(parseAssetInput(formData)).toEqual({
+      name: "Laptop",
+      description: null,
+      structureNodeId: null,
+      aasEndpointUrl: null,
       aasGlobalAssetId: "https://example.com/assets/abc",
     });
   });
 
-  it("returns a null aasEndpointUrl and aasGlobalAssetId when both are whitespace only", () => {
-    const formData = formDataWith({
-      name: "Laptop",
-      aasEndpointUrl: "   ",
-      aasGlobalAssetId: "   ",
-    });
+  it("returns null aasEndpointUrl and aasGlobalAssetId when aasReference is omitted or whitespace only", () => {
+    const formData = formDataWith({ name: "Laptop", aasReference: "   " });
 
     expect(parseAssetInput(formData)).toEqual({
       name: "Laptop",
@@ -136,6 +150,45 @@ describe("parseAssetInput", () => {
       structureNodeId: null,
       aasEndpointUrl: null,
       aasGlobalAssetId: null,
+    });
+  });
+});
+
+describe("classifyAasReference", () => {
+  it("returns both null for an empty string", () => {
+    expect(classifyAasReference("")).toEqual({
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
+    });
+  });
+
+  it("returns both null for whitespace only", () => {
+    expect(classifyAasReference("   ")).toEqual({
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
+    });
+  });
+
+  it("classifies a value containing /shells/ as an endpoint URL", () => {
+    expect(
+      classifyAasReference("http://example.com/shells/abc")
+    ).toEqual({
+      aasEndpointUrl: "http://example.com/shells/abc",
+      aasGlobalAssetId: null,
+    });
+  });
+
+  it("classifies a value without /shells/ as a globalAssetId", () => {
+    expect(classifyAasReference("https://example.com/assets/abc")).toEqual({
+      aasEndpointUrl: null,
+      aasGlobalAssetId: "https://example.com/assets/abc",
+    });
+  });
+
+  it("trims the value before classifying and returning it", () => {
+    expect(classifyAasReference("  https://example.com/assets/abc  ")).toEqual({
+      aasEndpointUrl: null,
+      aasGlobalAssetId: "https://example.com/assets/abc",
     });
   });
 });

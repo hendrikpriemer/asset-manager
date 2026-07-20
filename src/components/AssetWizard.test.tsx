@@ -23,8 +23,8 @@ const { createAsset, updateAsset } = vi.hoisted(() => ({
 const { checkAasReference } = vi.hoisted(() => ({
   checkAasReference: vi.fn<
     (reference: {
-      aasEndpointUrl: string;
-      aasGlobalAssetId: string;
+      aasEndpointUrl: string | null;
+      aasGlobalAssetId: string | null;
     }) => Promise<AasCheckResult>
   >(),
 }));
@@ -199,12 +199,13 @@ describe("AssetWizard (create mode)", () => {
     expect(
       screen.getByRole("heading", { name: "AAS reference" })
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("AAS endpoint URL")).toHaveValue("");
-    expect(screen.getByLabelText("Global asset ID")).toHaveValue("");
+    expect(
+      screen.getByLabelText("AAS endpoint URL or global asset ID")
+    ).toHaveValue("");
     expect(screen.getByRole("button", { name: "Next step" })).toBeEnabled();
   });
 
-  it("disables Test connection until an AAS reference field is filled", async () => {
+  it("disables Test connection until the AAS reference field is filled", async () => {
     render(<AssetWizard mode="create" structureOptions={[]} />);
     await goToAasStep();
 
@@ -215,7 +216,7 @@ describe("AssetWizard (create mode)", () => {
     await userEvent
       .setup()
       .type(
-        screen.getByLabelText("AAS endpoint URL"),
+        screen.getByLabelText("AAS endpoint URL or global asset ID"),
         "http://example.com/shells/abc"
       );
 
@@ -224,7 +225,7 @@ describe("AssetWizard (create mode)", () => {
     ).toBeEnabled();
   });
 
-  it("shows the resolved idShort when Test connection succeeds", async () => {
+  it("classifies a value containing /shells/ as an endpoint URL when testing the connection", async () => {
     checkAasReference.mockResolvedValue({
       status: "resolved",
       idShort: "TestLathe1",
@@ -232,7 +233,7 @@ describe("AssetWizard (create mode)", () => {
     render(<AssetWizard mode="create" structureOptions={[]} />);
     const user = await goToAasStep();
     await user.type(
-      screen.getByLabelText("AAS endpoint URL"),
+      screen.getByLabelText("AAS endpoint URL or global asset ID"),
       "http://example.com/shells/abc"
     );
 
@@ -241,16 +242,16 @@ describe("AssetWizard (create mode)", () => {
     expect(await screen.findByText("Resolved: TestLathe1")).toBeInTheDocument();
     expect(checkAasReference).toHaveBeenCalledWith({
       aasEndpointUrl: "http://example.com/shells/abc",
-      aasGlobalAssetId: "",
+      aasGlobalAssetId: null,
     });
   });
 
-  it("shows an error message when Test connection cannot resolve the reference", async () => {
+  it("classifies a value without /shells/ as a globalAssetId when testing the connection", async () => {
     checkAasReference.mockResolvedValue({ status: "unresolved" });
     render(<AssetWizard mode="create" structureOptions={[]} />);
     const user = await goToAasStep();
     await user.type(
-      screen.getByLabelText("Global asset ID"),
+      screen.getByLabelText("AAS endpoint URL or global asset ID"),
       "https://example.com/assets/abc"
     );
 
@@ -259,9 +260,13 @@ describe("AssetWizard (create mode)", () => {
     expect(
       await screen.findByText("Could not resolve this AAS reference.")
     ).toBeInTheDocument();
+    expect(checkAasReference).toHaveBeenCalledWith({
+      aasEndpointUrl: null,
+      aasGlobalAssetId: "https://example.com/assets/abc",
+    });
   });
 
-  it("clears the Test connection result when a field is edited again", async () => {
+  it("clears the Test connection result when the field is edited again", async () => {
     checkAasReference.mockResolvedValue({
       status: "resolved",
       idShort: "TestLathe1",
@@ -269,13 +274,16 @@ describe("AssetWizard (create mode)", () => {
     render(<AssetWizard mode="create" structureOptions={[]} />);
     const user = await goToAasStep();
     await user.type(
-      screen.getByLabelText("AAS endpoint URL"),
+      screen.getByLabelText("AAS endpoint URL or global asset ID"),
       "http://example.com/shells/abc"
     );
     await user.click(screen.getByRole("button", { name: "Test connection" }));
     await screen.findByText("Resolved: TestLathe1");
 
-    await user.type(screen.getByLabelText("AAS endpoint URL"), "2");
+    await user.type(
+      screen.getByLabelText("AAS endpoint URL or global asset ID"),
+      "2"
+    );
 
     expect(screen.queryByText("Resolved: TestLathe1")).not.toBeInTheDocument();
   });
@@ -340,7 +348,7 @@ describe("AssetWizard (create mode)", () => {
     render(<AssetWizard mode="create" structureOptions={[]} />);
     const user = await goToAasStep("Sensor", "A sensor");
     await user.type(
-      screen.getByLabelText("AAS endpoint URL"),
+      screen.getByLabelText("AAS endpoint URL or global asset ID"),
       "http://example.com/shells/abc"
     );
     await user.click(screen.getByRole("button", { name: "Next step" }));
@@ -376,34 +384,26 @@ describe("AssetWizard (create mode)", () => {
     expect(formData.get("name")).toBe("Sensor");
     expect(formData.get("description")).toBe("A sensor");
     expect(formData.get("structureNodeId")).toBe("site-1");
-    expect(formData.get("aasEndpointUrl")).toBe("");
-    expect(formData.get("aasGlobalAssetId")).toBe("");
+    expect(formData.get("aasReference")).toBe("");
     expect(formData.get("assetImage")).toBeNull();
     expect(formData.get("nameplateImage")).toBeNull();
     expect(updateAsset).not.toHaveBeenCalled();
   });
 
-  it("includes entered AAS reference values in the submitted form data", async () => {
+  it("includes the entered AAS reference value in the submitted form data", async () => {
     render(<AssetWizard mode="create" structureOptions={[]} />);
     const user = await goToAasStep("Sensor", "A sensor");
     await user.type(
-      screen.getByLabelText("AAS endpoint URL"),
+      screen.getByLabelText("AAS endpoint URL or global asset ID"),
       "http://example.com/shells/abc"
-    );
-    await user.type(
-      screen.getByLabelText("Global asset ID"),
-      "https://example.com/assets/abc"
     );
     await user.click(screen.getByRole("button", { name: "Next step" }));
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
     await waitFor(() => expect(createAsset).toHaveBeenCalledTimes(1));
     const [, formData] = createAsset.mock.calls[0];
-    expect(formData.get("aasEndpointUrl")).toBe(
+    expect(formData.get("aasReference")).toBe(
       "http://example.com/shells/abc"
-    );
-    expect(formData.get("aasGlobalAssetId")).toBe(
-      "https://example.com/assets/abc"
     );
   });
 
@@ -511,8 +511,7 @@ describe("AssetWizard (edit mode)", () => {
         initialName="Lathe"
         initialDescription="Main lathe"
         initialStructureNodeId=""
-        initialAasEndpointUrl=""
-        initialAasGlobalAssetId=""
+        initialAasReference=""
         existingAssetImageUrl={null}
         existingNameplateImageUrl={null}
         structureOptions={structureOptions}
@@ -544,19 +543,15 @@ describe("AssetWizard (edit mode)", () => {
     expect(screen.getByLabelText("Structure")).toHaveValue("site-1");
   });
 
-  it("pre-fills the AAS reference fields from the initial values", async () => {
+  it("pre-fills the AAS reference field from the initial value", async () => {
     renderEdit({
-      initialAasEndpointUrl: "http://example.com/shells/abc",
-      initialAasGlobalAssetId: "https://example.com/assets/abc",
+      initialAasReference: "http://example.com/shells/abc",
     });
 
     await goToAasStep("Lathe", "Main lathe");
-    expect(screen.getByLabelText("AAS endpoint URL")).toHaveValue(
-      "http://example.com/shells/abc"
-    );
-    expect(screen.getByLabelText("Global asset ID")).toHaveValue(
-      "https://example.com/assets/abc"
-    );
+    expect(
+      screen.getByLabelText("AAS endpoint URL or global asset ID")
+    ).toHaveValue("http://example.com/shells/abc");
   });
 
   it("shows the existing photos as previews in the Photos step", async () => {
