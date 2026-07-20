@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAasData } from "./aas";
+
+const { prisma } = vi.hoisted(() => ({
+  prisma: { aasRepository: { findMany: vi.fn() } },
+}));
+
+vi.mock("@/lib/prisma", () => ({ prisma }));
+
+const { getAasData } = await import("./aas");
 
 const REPO_BASE = "http://basyx-aas-env:8081";
 
@@ -39,7 +46,7 @@ const nameplateSubmodel = {
 };
 
 beforeEach(() => {
-  delete process.env.AAS_REPOSITORY_URL;
+  prisma.aasRepository.findMany.mockReset().mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -124,7 +131,9 @@ describe("getAasData", () => {
   });
 
   it("looks up a shell by globalAssetId against the configured repository", async () => {
-    process.env.AAS_REPOSITORY_URL = REPO_BASE;
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "Local BaSyx", baseUrl: REPO_BASE },
+    ]);
     const expectedFilter = Buffer.from(
       JSON.stringify({ name: "globalAssetId", value: "https://example.com/assets/lathe-1" })
     ).toString("base64url");
@@ -149,13 +158,49 @@ describe("getAasData", () => {
     expect(result?.submodels).toHaveLength(1);
   });
 
-  it("returns null when the globalAssetId lookup finds no shell", async () => {
-    process.env.AAS_REPOSITORY_URL = REPO_BASE;
+  it("returns null when the globalAssetId lookup finds no shell in any configured repository", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "Local BaSyx", baseUrl: REPO_BASE },
+    ]);
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ result: [] })));
 
     const result = await getAasData({ aasGlobalAssetId: "https://example.com/assets/none" });
 
     expect(result).toBeNull();
+  });
+
+  it("tries each configured repository in turn until one has a matching shell", async () => {
+    const otherRepoBase = "https://c1.api.wago.com/smartdata-aas-env";
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "Local BaSyx", baseUrl: REPO_BASE },
+      { id: "repo-2", name: "WAGO", baseUrl: otherRepoBase },
+    ]);
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.startsWith(REPO_BASE) && url.includes("assetIds")) {
+        return jsonResponse({ result: [] });
+      }
+      if (url.startsWith(otherRepoBase) && url.includes("assetIds")) {
+        return jsonResponse({ result: [shell] });
+      }
+      if (url === `${otherRepoBase}/shells/${encode(shell.id)}/submodel-refs`) {
+        return jsonResponse({ result: [] });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasGlobalAssetId: "https://example.com/assets/lathe-1" });
+
+    expect(result?.id).toBe(shell.id);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(REPO_BASE),
+      expect.anything()
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(otherRepoBase),
+      expect.anything()
+    );
   });
 
   it("prefers aasEndpointUrl over aasGlobalAssetId when both are set", async () => {
@@ -309,6 +354,151 @@ describe("getAasData", () => {
     const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
 
     expect(result?.idShort).toBe("");
+  });
+
+  it("recurses into SubmodelElementCollections, qualifying nested property idShorts with their collection path", async () => {
+    const technicalData = {
+      modelType: "Submodel",
+      id: "https://example.com/sm/technical-data",
+      idShort: "TechnicalData",
+      submodelElements: [
+        {
+          modelType: "SubmodelElementCollection",
+          idShort: "GeneralInformation",
+          value: [
+            { modelType: "Property", idShort: "ManufacturerName", value: "WAGO" },
+            {
+              modelType: "MultiLanguageProperty",
+              idShort: "ManufacturerProductDesignation",
+              value: [],
+            },
+          ],
+        },
+        { modelType: "Property", idShort: "TopLevelProp", value: "top" },
+        null,
+        "not-an-object",
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: technicalData.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(technicalData.id)}`) {
+        return jsonResponse(technicalData);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].properties).toEqual([
+      { idShort: "GeneralInformation / ManufacturerName", value: "WAGO" },
+      { idShort: "TopLevelProp", value: "top" },
+    ]);
+  });
+
+  it("qualifies a property's idShort with the full path through multiple nested collections", async () => {
+    const deepSubmodel = {
+      id: "https://example.com/sm/deep",
+      submodelElements: [
+        {
+          modelType: "SubmodelElementCollection",
+          idShort: "Outer",
+          value: [
+            {
+              modelType: "SubmodelElementCollection",
+              idShort: "Inner",
+              value: [{ modelType: "Property", idShort: "Leaf", value: "deep-value" }],
+            },
+          ],
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: deepSubmodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(deepSubmodel.id)}`) {
+        return jsonResponse(deepSubmodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].properties).toEqual([
+      { idShort: "Outer / Inner / Leaf", value: "deep-value" },
+    ]);
+  });
+
+  it("treats a SubmodelElementCollection with a non-array value as having no nested properties", async () => {
+    const brokenSubmodel = {
+      id: "https://example.com/sm/broken",
+      submodelElements: [
+        { modelType: "SubmodelElementCollection", idShort: "Broken", value: "not-an-array" },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: brokenSubmodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(brokenSubmodel.id)}`) {
+        return jsonResponse(brokenSubmodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].properties).toEqual([]);
+  });
+
+  it("stops recursing into collections nested deeper than the max depth", async () => {
+    function nestedCollection(remainingDepth: number): Record<string, unknown> {
+      if (remainingDepth === 0) {
+        return { modelType: "Property", idShort: "Leaf", value: "too-deep" };
+      }
+      return {
+        modelType: "SubmodelElementCollection",
+        idShort: `Level${remainingDepth}`,
+        value: [nestedCollection(remainingDepth - 1)],
+      };
+    }
+    // 11 levels of nesting: the leaf Property ends up processed at depth 11,
+    // one past MAX_COLLECTION_DEPTH (10), so it must be pruned.
+    const tooDeepSubmodel = {
+      id: "https://example.com/sm/too-deep",
+      submodelElements: [nestedCollection(11)],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: tooDeepSubmodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(tooDeepSubmodel.id)}`) {
+        return jsonResponse(tooDeepSubmodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].properties).toEqual([]);
   });
 
   it("defaults a submodel's id to an empty string when missing", async () => {

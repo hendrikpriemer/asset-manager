@@ -58,6 +58,10 @@ describe("Sidebar", () => {
       "href",
       "/info/about"
     );
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/settings/aas-repositories"
+    );
   });
 
   it("uses the responsive default width when no manual override is set", () => {
@@ -132,6 +136,32 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: "Info" })).not.toHaveAttribute(
       "aria-current"
     );
+  });
+
+  it("marks Settings as active on any /settings sub-page", () => {
+    usePathname.mockReturnValue("/settings/aas-repositories");
+    mockMatchMedia(true);
+
+    render(<Sidebar />);
+
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(
+      screen.getByRole("link", { name: /overview/i })
+    ).not.toHaveAttribute("aria-current");
+  });
+
+  it("does not mark Settings as active outside of /settings", () => {
+    usePathname.mockReturnValue("/assets");
+    mockMatchMedia(true);
+
+    render(<Sidebar />);
+
+    expect(
+      screen.getByRole("link", { name: "Settings" })
+    ).not.toHaveAttribute("aria-current");
   });
 
   it("collapses when toggled while the auto state is expanded", async () => {
