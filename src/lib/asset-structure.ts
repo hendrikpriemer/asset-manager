@@ -14,6 +14,10 @@ type RawStructureNode = {
   level: AssetStructureLevel;
   name: string;
   description: string | null;
+  address: string | null;
+  timezone: string | null;
+  manufacturer: string | null;
+  serialNumber: string | null;
   position: number;
   parentId: string | null;
   createdAt: Date;
@@ -26,6 +30,10 @@ export type StructureTreeNode = {
   level: AssetStructureLevel;
   name: string;
   description: string | null;
+  address: string | null;
+  timezone: string | null;
+  manufacturer: string | null;
+  serialNumber: string | null;
   position: number;
   parentId: string | null;
   createdAt: Date;

@@ -2,9 +2,25 @@ import type { AssetStructureLevel } from "@/generated/prisma/client";
 
 export class AssetStructureValidationError extends Error {}
 
-export type StructureNodeInput = { name: string; description: string | null };
+export type StructureNodeInput = {
+  name: string;
+  description: string | null;
+  address: string | null;
+  timezone: string | null;
+  manufacturer: string | null;
+  serialNumber: string | null;
+};
 
 const MAX_NAME_LENGTH = 200;
+
+function parseOptionalTrimmedString(
+  formData: FormData,
+  fieldName: string
+): string | null {
+  const raw = formData.get(fieldName);
+  const trimmed = typeof raw === "string" ? raw.trim() : "";
+  return trimmed === "" ? null : trimmed;
+}
 
 export function parseStructureNodeInput(formData: FormData): StructureNodeInput {
   const rawName = formData.get("name");
@@ -19,12 +35,14 @@ export function parseStructureNodeInput(formData: FormData): StructureNodeInput 
     );
   }
 
-  const rawDescription = formData.get("description");
-  const trimmedDescription =
-    typeof rawDescription === "string" ? rawDescription.trim() : "";
-  const description = trimmedDescription === "" ? null : trimmedDescription;
-
-  return { name, description };
+  return {
+    name,
+    description: parseOptionalTrimmedString(formData, "description"),
+    address: parseOptionalTrimmedString(formData, "address"),
+    timezone: parseOptionalTrimmedString(formData, "timezone"),
+    manufacturer: parseOptionalTrimmedString(formData, "manufacturer"),
+    serialNumber: parseOptionalTrimmedString(formData, "serialNumber"),
+  };
 }
 
 /** Levels a user can add as a child node. Enterprise is only ever the root. */

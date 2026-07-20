@@ -54,6 +54,10 @@ describe("createAssetStructureRoot", () => {
       data: {
         name: "Acme",
         description: "HQ",
+        address: null,
+        timezone: null,
+        manufacturer: null,
+        serialNumber: null,
         level: AssetStructureLevel.ENTERPRISE,
         position: 0,
       },
@@ -108,6 +112,10 @@ describe("createStructureNode", () => {
       data: {
         name: "Laatzen",
         description: null,
+        address: null,
+        timezone: null,
+        manufacturer: null,
+        serialNumber: null,
         level: AssetStructureLevel.SITE,
         parentId: "root",
         position: 2,
@@ -156,7 +164,14 @@ describe("updateStructureNode", () => {
     expect(result).toEqual({ error: null });
     expect(prisma.assetStructureNode.update).toHaveBeenCalledWith({
       where: { id: "node-1" },
-      data: { name: "Renamed", description: "New desc" },
+      data: {
+        name: "Renamed",
+        description: "New desc",
+        address: null,
+        timezone: null,
+        manufacturer: null,
+        serialNumber: null,
+      },
     });
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
   });

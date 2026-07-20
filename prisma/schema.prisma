@@ -46,12 +46,16 @@ enum AssetStructureLevel {
 }
 
 model AssetStructureNode {
-  id          String              @id @default(cuid())
-  level       AssetStructureLevel
-  name        String
-  description String?
-  position    Int                 @default(0)
-  parentId    String?
+  id           String              @id @default(cuid())
+  level        AssetStructureLevel
+  name         String
+  description  String?
+  address      String?
+  timezone     String?
+  manufacturer String?
+  serialNumber String?
+  position     Int                 @default(0)
+  parentId     String?
   parent      AssetStructureNode?  @relation("AssetStructureNodeParent", fields: [parentId], references: [id], onDelete: Cascade)
   children    AssetStructureNode[] @relation("AssetStructureNodeParent")
   assets      Asset[]

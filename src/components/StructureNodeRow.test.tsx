@@ -39,6 +39,12 @@ vi.mock("@/lib/asset-structure-actions", () => ({
   moveStructureNodeDown,
 }));
 
+const { lookupTimezone } = vi.hoisted(() => ({
+  lookupTimezone: vi.fn(),
+}));
+
+vi.mock("@/lib/timezone-actions", () => ({ lookupTimezone }));
+
 const now = new Date("2026-01-01T00:00:00.000Z");
 
 function makeNode(overrides: Partial<StructureTreeNode>): StructureTreeNode {
@@ -47,6 +53,10 @@ function makeNode(overrides: Partial<StructureTreeNode>): StructureTreeNode {
     level: AssetStructureLevel.SITE,
     name: "Node",
     description: null,
+    address: null,
+    timezone: null,
+    manufacturer: null,
+    serialNumber: null,
     position: 0,
     parentId: "parent",
     createdAt: now,
@@ -120,6 +130,7 @@ function renderRow(
 describe("StructureNodeRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    lookupTimezone.mockResolvedValue(null);
   });
 
   it("renders the node name, level badge, and description", () => {
@@ -413,5 +424,252 @@ describe("StructureNodeRow", () => {
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Laatzen"));
+  });
+
+  describe("level-specific fields", () => {
+    it("shows pre-filled Address and Timezone fields when renaming a Site node", async () => {
+      const user = userEvent.setup();
+      const { site } = buildFixtureTree();
+      const siteWithDetails = {
+        ...site,
+        address: "Hansastr. 27, Minden, Germany",
+        timezone: "Europe/Berlin",
+      };
+
+      renderRow(siteWithDetails);
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+
+      expect(screen.getByLabelText("Address")).toHaveValue(
+        "Hansastr. 27, Minden, Germany"
+      );
+      expect(screen.getByLabelText("Timezone")).toHaveValue("Europe/Berlin");
+      expect(screen.queryByLabelText("Manufacturer")).not.toBeInTheDocument();
+    });
+
+    it("shows pre-filled Manufacturer and Serial number fields when renaming an Equipment node", async () => {
+      const user = userEvent.setup();
+      const { cnc } = buildFixtureTree();
+      const cncWithDetails = {
+        ...cnc,
+        manufacturer: "Acme Machine Works",
+        serialNumber: "SN-1",
+      };
+
+      renderRow(cncWithDetails);
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+
+      expect(screen.getByLabelText("Manufacturer")).toHaveValue(
+        "Acme Machine Works"
+      );
+      expect(screen.getByLabelText("Serial number")).toHaveValue("SN-1");
+      expect(screen.queryByLabelText("Address")).not.toBeInTheDocument();
+    });
+
+    it("shows neither Site nor Equipment fields when renaming an Enterprise node", async () => {
+      const user = userEvent.setup();
+      const { root } = buildFixtureTree();
+
+      renderRow(root);
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+
+      expect(screen.queryByLabelText("Address")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Manufacturer")).not.toBeInTheDocument();
+    });
+
+    it("looks up and auto-fills the timezone when the rename form's address field is blurred", async () => {
+      const user = userEvent.setup();
+      lookupTimezone.mockResolvedValue("Europe/Berlin");
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+      await user.type(screen.getByLabelText("Address"), "Minden, Germany");
+      await user.tab();
+
+      await waitFor(() =>
+        expect(lookupTimezone).toHaveBeenCalledWith("Minden, Germany")
+      );
+      await waitFor(() =>
+        expect(screen.getByLabelText("Timezone")).toHaveValue("Europe/Berlin")
+      );
+    });
+
+    it("does not look up the timezone when the rename form's address field is blurred empty", async () => {
+      const user = userEvent.setup();
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+      await user.click(screen.getByLabelText("Address"));
+      await user.tab();
+
+      expect(lookupTimezone).not.toHaveBeenCalled();
+    });
+
+    it("leaves the rename form's timezone untouched when the lookup finds nothing", async () => {
+      const user = userEvent.setup();
+      lookupTimezone.mockResolvedValue(null);
+      const { site } = buildFixtureTree();
+      const siteWithTimezone = { ...site, timezone: "Europe/Berlin" };
+
+      renderRow(siteWithTimezone);
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+      await user.type(screen.getByLabelText("Address"), "Nowhere");
+      await user.tab();
+
+      await waitFor(() => expect(lookupTimezone).toHaveBeenCalled());
+      expect(screen.getByLabelText("Timezone")).toHaveValue("Europe/Berlin");
+    });
+
+    it("resets the rename form's address and timezone when reopened after cancelling", async () => {
+      const user = userEvent.setup();
+      const { site } = buildFixtureTree();
+      const siteWithDetails = {
+        ...site,
+        address: "Original address",
+        timezone: "Europe/Berlin",
+      };
+
+      renderRow(siteWithDetails);
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+      await user.clear(screen.getByLabelText("Address"));
+      await user.type(screen.getByLabelText("Address"), "Changed address");
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+      expect(screen.getByLabelText("Address")).toHaveValue("Original address");
+    });
+
+    it("shows Address and Timezone fields by default when adding a child (Site is the default level)", async () => {
+      const user = userEvent.setup();
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+
+      expect(screen.getByLabelText("Address")).toHaveValue("");
+      expect(screen.getByLabelText("Timezone")).toHaveValue("");
+    });
+
+    it("switches to Manufacturer and Serial number fields when the level is changed to Equipment", async () => {
+      const user = userEvent.setup();
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+      await user.selectOptions(screen.getByLabelText("Level"), "EQUIPMENT");
+
+      expect(screen.getByLabelText("Manufacturer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Serial number")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Address")).not.toBeInTheDocument();
+    });
+
+    it("looks up and auto-fills the timezone when the add-child form's address field is blurred", async () => {
+      const user = userEvent.setup();
+      lookupTimezone.mockResolvedValue("Europe/Berlin");
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+      await user.type(screen.getByLabelText("Address"), "Minden, Germany");
+      await user.tab();
+
+      await waitFor(() =>
+        expect(lookupTimezone).toHaveBeenCalledWith("Minden, Germany")
+      );
+      await waitFor(() =>
+        expect(screen.getByLabelText("Timezone")).toHaveValue("Europe/Berlin")
+      );
+    });
+
+    it("leaves the add-child form's timezone untouched when the lookup finds nothing", async () => {
+      const user = userEvent.setup();
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+      await user.type(screen.getByLabelText("Address"), "Nowhere");
+      await user.tab();
+
+      await waitFor(() => expect(lookupTimezone).toHaveBeenCalled());
+      expect(screen.getByLabelText("Timezone")).toHaveValue("");
+    });
+
+    it("does not look up the timezone when the add-child form's address field is blurred empty", async () => {
+      const user = userEvent.setup();
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+      await user.click(screen.getByLabelText("Address"));
+      await user.tab();
+
+      expect(lookupTimezone).not.toHaveBeenCalled();
+    });
+
+    it("resets the add-child form's level, address, and timezone when reopened after cancelling", async () => {
+      const user = userEvent.setup();
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+      await user.selectOptions(screen.getByLabelText("Level"), "EQUIPMENT");
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+      expect(screen.getByLabelText("Level")).toHaveValue("SITE");
+    });
+
+    it("includes address and timezone in the submitted form data when renaming a Site node", async () => {
+      const user = userEvent.setup();
+      updateStructureNode.mockResolvedValue({ error: null });
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+      await user.type(screen.getByLabelText("Address"), "Minden, Germany");
+      await user.type(screen.getByLabelText("Timezone"), "Europe/Berlin");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(updateStructureNode).toHaveBeenCalledTimes(1));
+      const [, , formData] = updateStructureNode.mock.calls[0];
+      expect(formData.get("address")).toBe("Minden, Germany");
+      expect(formData.get("timezone")).toBe("Europe/Berlin");
+    });
+
+    it("allows manually editing the add-child form's Timezone field", async () => {
+      const user = userEvent.setup();
+      createStructureNode.mockResolvedValue({ error: null });
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+      await user.type(screen.getByLabelText("Name"), "New Site");
+      await user.type(screen.getByLabelText("Timezone"), "Europe/Berlin");
+      await user.click(screen.getByRole("button", { name: "Create" }));
+
+      await waitFor(() => expect(createStructureNode).toHaveBeenCalledTimes(1));
+      const [, , formData] = createStructureNode.mock.calls[0];
+      expect(formData.get("timezone")).toBe("Europe/Berlin");
+    });
+
+    it("includes manufacturer and serialNumber in the submitted form data when adding an Equipment child", async () => {
+      const user = userEvent.setup();
+      createStructureNode.mockResolvedValue({ error: null });
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+      await user.selectOptions(screen.getByLabelText("Level"), "EQUIPMENT");
+      await user.type(screen.getByLabelText("Name"), "New Machine");
+      await user.type(screen.getByLabelText("Manufacturer"), "Acme Machine Works");
+      await user.type(screen.getByLabelText("Serial number"), "SN-999");
+      await user.click(screen.getByRole("button", { name: "Create" }));
+
+      await waitFor(() => expect(createStructureNode).toHaveBeenCalledTimes(1));
+      const [, , formData] = createStructureNode.mock.calls[0];
+      expect(formData.get("manufacturer")).toBe("Acme Machine Works");
+      expect(formData.get("serialNumber")).toBe("SN-999");
+    });
   });
 });

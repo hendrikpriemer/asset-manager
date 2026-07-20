@@ -19,6 +19,10 @@ function makeNode(
   return {
     level: AssetStructureLevel.SITE,
     description: null,
+    address: null,
+    timezone: null,
+    manufacturer: null,
+    serialNumber: null,
     position: 0,
     parentId: null,
     createdAt: now,

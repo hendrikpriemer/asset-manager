@@ -26,6 +26,10 @@ describe("parseStructureNodeInput", () => {
     expect(parseStructureNodeInput(formData)).toEqual({
       name: "Aventics Site Laatzen",
       description: "Main manufacturing site",
+      address: null,
+      timezone: null,
+      manufacturer: null,
+      serialNumber: null,
     });
   });
 
@@ -35,6 +39,10 @@ describe("parseStructureNodeInput", () => {
     expect(parseStructureNodeInput(formData)).toEqual({
       name: "Scania Line",
       description: null,
+      address: null,
+      timezone: null,
+      manufacturer: null,
+      serialNumber: null,
     });
   });
 
@@ -44,6 +52,44 @@ describe("parseStructureNodeInput", () => {
     expect(parseStructureNodeInput(formData)).toEqual({
       name: "Scania Line",
       description: null,
+      address: null,
+      timezone: null,
+      manufacturer: null,
+      serialNumber: null,
+    });
+  });
+
+  it("returns trimmed address and timezone for a Site node", () => {
+    const formData = formDataWith({
+      name: "Laatzen",
+      address: "  Hansastr. 27, Minden, Germany  ",
+      timezone: "  Europe/Berlin  ",
+    });
+
+    expect(parseStructureNodeInput(formData)).toEqual({
+      name: "Laatzen",
+      description: null,
+      address: "Hansastr. 27, Minden, Germany",
+      timezone: "Europe/Berlin",
+      manufacturer: null,
+      serialNumber: null,
+    });
+  });
+
+  it("returns trimmed manufacturer and serialNumber for an Equipment node", () => {
+    const formData = formDataWith({
+      name: "CNC Mill",
+      manufacturer: "  Acme Machine Works  ",
+      serialNumber: "  SN-12345  ",
+    });
+
+    expect(parseStructureNodeInput(formData)).toEqual({
+      name: "CNC Mill",
+      description: null,
+      address: null,
+      timezone: null,
+      manufacturer: "Acme Machine Works",
+      serialNumber: "SN-12345",
     });
   });
 
@@ -81,6 +127,10 @@ describe("parseStructureNodeInput", () => {
     expect(parseStructureNodeInput(formData)).toEqual({
       name,
       description: null,
+      address: null,
+      timezone: null,
+      manufacturer: null,
+      serialNumber: null,
     });
   });
 });
