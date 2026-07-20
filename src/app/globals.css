@@ -244,3 +244,33 @@ body {
     "GRAD" 0,
     "opsz" 24;
 }
+
+/*
+ * Thin, pill-shaped scrollbar matching Material Design 3's neutral, low-
+ * emphasis styling (subtle outline-variant thumb, no visible track) instead
+ * of the much wider OS/browser default. Firefox is styled via the standard
+ * `scrollbar-*` properties; Chromium/WebKit via `::-webkit-scrollbar`.
+ */
+@layer components {
+  .md-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--md-outline-variant) transparent;
+  }
+  .md-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .md-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .md-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--md-outline-variant);
+    border-radius: 9999px;
+  }
+  .md-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--md-outline);
+  }
+  .md-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}

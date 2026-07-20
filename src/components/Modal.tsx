@@ -38,18 +38,23 @@ export function Modal({ children }: { children: ReactNode }) {
         aria-modal="true"
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        className="w-fit max-w-[min(64rem,90vw)] max-h-[85vh] overflow-y-auto overflow-x-auto rounded-xl bg-surface-container-high p-6 shadow-elevation-3"
+        className="w-fit max-w-[min(64rem,90vw)] overflow-hidden rounded-xl bg-surface-container-high shadow-elevation-3"
       >
-        <Button
-          type="button"
-          variant="icon"
-          onClick={close}
-          aria-label="Close"
-          className="float-right"
-        >
-          <Icon name="close" />
-        </Button>
-        {children}
+        {/* Scrolling happens in this inner box so the straight-edged
+            scrollbar gets clipped by the outer box's rounded corners
+            instead of visually poking out past them. */}
+        <div className="max-h-[85vh] overflow-y-auto overflow-x-auto p-6 md-scrollbar">
+          <Button
+            type="button"
+            variant="icon"
+            onClick={close}
+            aria-label="Close"
+            className="float-right"
+          >
+            <Icon name="close" />
+          </Button>
+          {children}
+        </div>
       </div>
     </div>
   );

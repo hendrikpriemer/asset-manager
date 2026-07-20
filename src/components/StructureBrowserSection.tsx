@@ -55,7 +55,7 @@ export function StructureBrowserSection({
       </div>
       <div className="flex min-h-0 flex-1 gap-8">
         <div
-          className={`min-h-0 ${TREE_COLUMN_WIDTH} shrink-0 overflow-auto border-r border-outline-variant pr-4`}
+          className={`min-h-0 ${TREE_COLUMN_WIDTH} shrink-0 overflow-auto border-r border-outline-variant pr-4 md-scrollbar`}
         >
           <StructureNavTree
             tree={tree}
@@ -63,7 +63,9 @@ export function StructureBrowserSection({
             query={query}
           />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{detail}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto md-scrollbar">
+          {detail}
+        </div>
       </div>
     </div>
   );
