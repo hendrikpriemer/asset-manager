@@ -1,16 +1,8 @@
-"use client";
-
-import { useActionState } from "react";
-import {
-  createAasRepository,
-  deleteAasRepository,
-} from "@/lib/aas-repository-actions";
-import { Button } from "@/components/Button";
+import Link from "next/link";
+import { deleteAasRepository } from "@/lib/aas-repository-actions";
 import { DeleteAasRepositoryButton } from "@/components/DeleteAasRepositoryButton";
+import { Icon } from "@/components/Icon";
 import { Tooltip } from "@/components/Tooltip";
-
-const FIELD_CLASSES =
-  "rounded-xs border border-outline bg-surface px-3 py-2 md-body-large text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
 
 type AasRepositoryListItem = { id: string; name: string; baseUrl: string };
 
@@ -19,21 +11,31 @@ export function AasRepositoriesSection({
 }: {
   repositories: AasRepositoryListItem[];
 }) {
-  const [state, formAction, pending] = useActionState(createAasRepository, {
-    error: null,
-  });
-
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="md-headline-small text-on-surface">
-          AAS Repositories
-        </h1>
-        <p className="md-body-medium text-on-surface-variant">
-          When an asset is linked by global asset ID, every repository
-          configured here is searched in turn until one of them has a
-          matching shell.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="md-headline-small text-on-surface">
+            AAS Repositories
+          </h1>
+          <p className="md-body-medium text-on-surface-variant">
+            When an asset is linked by global asset ID, every repository
+            configured here is searched in turn until one of them has a
+            matching shell.
+          </p>
+        </div>
+        <Tooltip label="Add repository">
+          <Link
+            href="/settings/aas-repositories/new"
+            aria-label="Add repository"
+            className="flex shrink-0 items-center gap-2 rounded-full bg-primary px-3 py-2.5 text-on-primary lg:px-6"
+          >
+            <Icon name="add" />
+            <span className="hidden md-label-large lg:inline">
+              Add repository
+            </span>
+          </Link>
+        </Tooltip>
       </div>
 
       {repositories.length === 0 ? (
@@ -55,48 +57,28 @@ export function AasRepositoriesSection({
                   {repository.baseUrl}
                 </span>
               </div>
-              <Tooltip label="Delete">
-                <DeleteAasRepositoryButton
-                  repositoryId={repository.id}
-                  repositoryName={repository.name}
-                  deleteAasRepositoryAction={deleteAasRepository}
-                />
-              </Tooltip>
+              <div className="flex shrink-0 items-center gap-1">
+                <Tooltip label="Edit">
+                  <Link
+                    href={`/settings/aas-repositories/edit/${repository.id}`}
+                    aria-label={`Edit ${repository.name}`}
+                    className="inline-flex items-center justify-center rounded-full p-2 text-on-surface-variant hover:bg-on-surface/8"
+                  >
+                    <Icon name="edit" />
+                  </Link>
+                </Tooltip>
+                <Tooltip label="Delete">
+                  <DeleteAasRepositoryButton
+                    repositoryId={repository.id}
+                    repositoryName={repository.name}
+                    deleteAasRepositoryAction={deleteAasRepository}
+                  />
+                </Tooltip>
+              </div>
             </li>
           ))}
         </ul>
       )}
-
-      <form action={formAction} className="flex max-w-md flex-col gap-4">
-        <h2 className="md-title-medium text-on-surface">Add repository</h2>
-        <label className="flex flex-col gap-1 md-body-small text-on-surface-variant">
-          Name
-          <input
-            name="name"
-            required
-            maxLength={200}
-            placeholder="e.g. WAGO"
-            className={FIELD_CLASSES}
-          />
-        </label>
-        <label className="flex flex-col gap-1 md-body-small text-on-surface-variant">
-          Base URL
-          <input
-            name="baseUrl"
-            required
-            placeholder="https://c1.api.wago.com/smartdata-aas-env"
-            className={FIELD_CLASSES}
-          />
-        </label>
-        {state.error && (
-          <p role="alert" className="md-body-small text-error">
-            {state.error}
-          </p>
-        )}
-        <Button type="submit" disabled={pending} className="w-fit">
-          {pending ? "Adding…" : "Add repository"}
-        </Button>
-      </form>
     </div>
   );
 }

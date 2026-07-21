@@ -1,16 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AasRepositoriesSection } from "./AasRepositoriesSection";
-import type { ActionState } from "@/lib/aas-repository-actions";
 
-const { createAasRepository, deleteAasRepository } = vi.hoisted(() => ({
-  createAasRepository: vi.fn(),
+const { deleteAasRepository } = vi.hoisted(() => ({
   deleteAasRepository: vi.fn(),
 }));
 
 vi.mock("@/lib/aas-repository-actions", () => ({
-  createAasRepository,
   deleteAasRepository,
 }));
 
@@ -57,34 +54,27 @@ describe("AasRepositoriesSection", () => {
     expect(deleteAasRepository).toHaveBeenCalledWith("repo-1");
   });
 
-  it("submits the add-repository form to createAasRepository", async () => {
-    const user = userEvent.setup();
-    createAasRepository.mockResolvedValue({ error: null });
+  it("links each repository's Edit action to its edit route", () => {
+    render(
+      <AasRepositoriesSection
+        repositories={[
+          { id: "repo-1", name: "WAGO", baseUrl: "https://c1.api.wago.com" },
+        ]}
+      />
+    );
 
-    render(<AasRepositoriesSection repositories={[]} />);
-    await user.type(screen.getByLabelText("Name"), "WAGO");
-    await user.type(screen.getByLabelText("Base URL"), "https://c1.api.wago.com");
-    await user.click(screen.getByRole("button", { name: "Add repository" }));
-
-    await waitFor(() => expect(createAasRepository).toHaveBeenCalledTimes(1));
-    const [, formData] = createAasRepository.mock.calls[0];
-    expect(formData.get("name")).toBe("WAGO");
-    expect(formData.get("baseUrl")).toBe("https://c1.api.wago.com");
+    expect(screen.getByRole("link", { name: "Edit WAGO" })).toHaveAttribute(
+      "href",
+      "/settings/aas-repositories/edit/repo-1"
+    );
   });
 
-  it("displays the error returned by createAasRepository", async () => {
-    const user = userEvent.setup();
-    createAasRepository.mockResolvedValue({
-      error: "A repository with this base URL is already configured.",
-    } satisfies ActionState);
-
+  it("links Add repository to the add-repository route", () => {
     render(<AasRepositoriesSection repositories={[]} />);
-    await user.type(screen.getByLabelText("Name"), "WAGO");
-    await user.type(screen.getByLabelText("Base URL"), "https://c1.api.wago.com");
-    await user.click(screen.getByRole("button", { name: "Add repository" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "A repository with this base URL is already configured."
+    expect(screen.getByRole("link", { name: "Add repository" })).toHaveAttribute(
+      "href",
+      "/settings/aas-repositories/new"
     );
   });
 });
