@@ -14,6 +14,10 @@
  * once resolved to a display string), and `File` elements - not yet
  * `SubmodelElementList`, `ReferenceElement`, or other types. Those can be
  * added once the display side needs them.
+ *
+ * `getRawAasData` exposes the same fetch untransformed, for callers (like
+ * `lib/aas-mirror.ts`) that need a lossless copy of the source JSON rather
+ * than this module's simplified display shape.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -124,7 +128,7 @@ export type AasData = {
   submodels: AasSubmodelData[];
 };
 
-function encodeAasId(id: string): string {
+export function encodeAasId(id: string): string {
   return Buffer.from(id, "utf-8").toString("base64url");
 }
 
@@ -366,10 +370,10 @@ function toSubmodelData(submodel: Record<string, unknown>): AasSubmodelData {
   };
 }
 
-async function fetchSubmodels(
+async function fetchRawSubmodels(
   baseUrl: string,
   aasId: string
-): Promise<AasSubmodelData[]> {
+): Promise<Record<string, unknown>[]> {
   const refsPage = await fetchJson(
     `${baseUrl}/shells/${encodeAasId(aasId)}/submodel-refs`
   );
@@ -381,12 +385,26 @@ async function fetchSubmodels(
     submodelIds.map((id) => fetchJson(`${baseUrl}/submodels/${encodeAasId(id)}`))
   );
 
-  return submodels
-    .filter((submodel): submodel is Record<string, unknown> => submodel !== null)
-    .map(toSubmodelData);
+  return submodels.filter(
+    (submodel): submodel is Record<string, unknown> => submodel !== null
+  );
 }
 
-export async function getAasData(reference: AasReference): Promise<AasData | null> {
+export type RawAasData = {
+  shell: Record<string, unknown>;
+  submodels: Record<string, unknown>[];
+};
+
+/**
+ * Like `getAasData`, but returns the untransformed JSON as fetched from the
+ * source repository - used by `lib/aas-mirror.ts` to forward a faithful,
+ * lossless copy to the local mirror repository (our own simplified
+ * `AasElementGroup` shape deliberately discards fields like `modelType`,
+ * `valueType`, and `semanticId` that a spec-compliant AAS write needs).
+ */
+export async function getRawAasData(
+  reference: AasReference
+): Promise<RawAasData | null> {
   const resolved = await resolveShell(reference);
   if (!resolved) {
     return null;
@@ -398,8 +416,20 @@ export async function getAasData(reference: AasReference): Promise<AasData | nul
   }
 
   return {
-    id: aasId,
-    idShort: asString(resolved.shell.idShort) ?? "",
-    submodels: await fetchSubmodels(resolved.baseUrl, aasId),
+    shell: resolved.shell,
+    submodels: await fetchRawSubmodels(resolved.baseUrl, aasId),
   };
+}
+
+export function toAasData(raw: RawAasData): AasData {
+  return {
+    id: asString(raw.shell.id) ?? "",
+    idShort: asString(raw.shell.idShort) ?? "",
+    submodels: raw.submodels.map(toSubmodelData),
+  };
+}
+
+export async function getAasData(reference: AasReference): Promise<AasData | null> {
+  const raw = await getRawAasData(reference);
+  return raw ? toAasData(raw) : null;
 }

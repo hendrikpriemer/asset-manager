@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { Asset } from "@/generated/prisma/client";
 import { AssetDetailPanel } from "./AssetDetailPanel";
+
+vi.mock("@/lib/actions", () => ({ refreshAasSearchIndex: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 type AssetDetail = Omit<Asset, "assetImage" | "nameplateImage">;
 
@@ -17,6 +22,8 @@ function makeAsset(overrides: Partial<AssetDetail> = {}): AssetDetail {
     nameplateImageType: null,
     aasEndpointUrl: null,
     aasGlobalAssetId: null,
+    aasSearchText: null,
+    aasSearchIndexedAt: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -122,6 +129,38 @@ describe("AssetDetailPanel", () => {
     expect(
       screen.getByText("AAS data could not be loaded.")
     ).toBeInTheDocument();
+    expect(screen.getByText("Not yet indexed")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Refresh search index/ })
+    ).toBeInTheDocument();
+  });
+
+  it("shows when the search index was last updated", () => {
+    render(
+      <AssetDetailPanel
+        asset={makeAsset({
+          aasEndpointUrl: "http://example.com/shells/abc",
+          aasSearchIndexedAt: new Date("2026-03-01T12:30:00.000Z"),
+        })}
+        structurePath={null}
+        aasData={null}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        `Search index last updated ${new Date("2026-03-01T12:30:00.000Z").toLocaleString("en-US", { timeZone: "UTC" })}`
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the AAS index status or refresh button when the asset has no AAS reference", () => {
+    render(<AssetDetailPanel asset={makeAsset()} structurePath={null} />);
+
+    expect(screen.queryByText("Not yet indexed")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Refresh search index/ })
+    ).not.toBeInTheDocument();
   });
 
   it("renders the resolved shell idShort and delegates submodels to AasViewer", () => {

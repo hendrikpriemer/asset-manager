@@ -3,12 +3,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AasRepositoriesSection } from "./AasRepositoriesSection";
 
-const { deleteAasRepository } = vi.hoisted(() => ({
+const { deleteAasRepository, testAasRepositoryConnection } = vi.hoisted(() => ({
   deleteAasRepository: vi.fn(),
+  testAasRepositoryConnection: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock("@/lib/aas-repository-actions", () => ({
   deleteAasRepository,
+  testAasRepositoryConnection,
 }));
 
 describe("AasRepositoriesSection", () => {
@@ -24,8 +26,18 @@ describe("AasRepositoriesSection", () => {
     render(
       <AasRepositoriesSection
         repositories={[
-          { id: "repo-1", name: "WAGO", baseUrl: "https://c1.api.wago.com" },
-          { id: "repo-2", name: "Local BaSyx", baseUrl: "http://basyx-aas-env:8081" },
+          {
+            id: "repo-1",
+            name: "WAGO",
+            baseUrl: "https://c1.api.wago.com",
+            isLocalMirror: false,
+          },
+          {
+            id: "repo-2",
+            name: "Local BaSyx",
+            baseUrl: "http://basyx-aas-env:8081",
+            isLocalMirror: true,
+          },
         ]}
       />
     );
@@ -34,6 +46,24 @@ describe("AasRepositoriesSection", () => {
     expect(screen.getByText("https://c1.api.wago.com")).toBeInTheDocument();
     expect(screen.getByText("Local BaSyx")).toBeInTheDocument();
     expect(screen.getByText("http://basyx-aas-env:8081")).toBeInTheDocument();
+    expect(screen.getByText("Local mirror")).toBeInTheDocument();
+  });
+
+  it("does not show the local mirror badge for repositories that are not the mirror", () => {
+    render(
+      <AasRepositoriesSection
+        repositories={[
+          {
+            id: "repo-1",
+            name: "WAGO",
+            baseUrl: "https://c1.api.wago.com",
+            isLocalMirror: false,
+          },
+        ]}
+      />
+    );
+
+    expect(screen.queryByText("Local mirror")).not.toBeInTheDocument();
   });
 
   it("deletes a repository when confirmed", async () => {
@@ -44,7 +74,12 @@ describe("AasRepositoriesSection", () => {
     render(
       <AasRepositoriesSection
         repositories={[
-          { id: "repo-1", name: "WAGO", baseUrl: "https://c1.api.wago.com" },
+          {
+            id: "repo-1",
+            name: "WAGO",
+            baseUrl: "https://c1.api.wago.com",
+            isLocalMirror: false,
+          },
         ]}
       />
     );
@@ -58,7 +93,12 @@ describe("AasRepositoriesSection", () => {
     render(
       <AasRepositoriesSection
         repositories={[
-          { id: "repo-1", name: "WAGO", baseUrl: "https://c1.api.wago.com" },
+          {
+            id: "repo-1",
+            name: "WAGO",
+            baseUrl: "https://c1.api.wago.com",
+            isLocalMirror: false,
+          },
         ]}
       />
     );
@@ -76,5 +116,47 @@ describe("AasRepositoriesSection", () => {
       "href",
       "/settings/aas-repositories/new"
     );
+  });
+
+  it("shows a connection status indicator for every repository", () => {
+    render(
+      <AasRepositoriesSection
+        repositories={[
+          {
+            id: "repo-1",
+            name: "WAGO",
+            baseUrl: "https://c1.api.wago.com",
+            isLocalMirror: false,
+          },
+        ]}
+      />
+    );
+
+    expect(testAasRepositoryConnection).toHaveBeenCalledWith(
+      "https://c1.api.wago.com"
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Connecting…");
+  });
+
+  it("hides the Edit and Delete actions for the local mirror repository", () => {
+    render(
+      <AasRepositoriesSection
+        repositories={[
+          {
+            id: "mirror-1",
+            name: "Local AAS Mirror",
+            baseUrl: "http://basyx-aas-env:8081",
+            isLocalMirror: true,
+          },
+        ]}
+      />
+    );
+
+    expect(
+      screen.queryByRole("link", { name: "Edit Local AAS Mirror" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete Local AAS Mirror" })
+    ).not.toBeInTheDocument();
   });
 });

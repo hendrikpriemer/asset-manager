@@ -24,6 +24,8 @@ model Asset {
   nameplateImageType String?
   aasEndpointUrl     String?
   aasGlobalAssetId   String?
+  aasSearchText      String?
+  aasSearchIndexedAt DateTime?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -31,10 +33,11 @@ model Asset {
 }
 
 model AasRepository {
-  id        String   @id @default(cuid())
-  name      String
-  baseUrl   String   @unique
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  name          String
+  baseUrl       String   @unique
+  isLocalMirror Boolean  @default(false)
+  createdAt     DateTime @default(now())
 }
 
 enum AssetStructureLevel {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Asset } from "@/generated/prisma/client";
 import type { AasData } from "@/lib/aas";
 import { AasViewer } from "@/components/AasViewer";
+import { RefreshAasSearchIndexButton } from "@/components/RefreshAasSearchIndexButton";
 
 type AssetDetail = Omit<Asset, "assetImage" | "nameplateImage">;
 
@@ -75,6 +76,12 @@ export function AssetDetailPanel({
               AAS data could not be loaded.
             </p>
           )}
+          <p className="md-body-small text-on-surface-variant">
+            {asset.aasSearchIndexedAt
+              ? `Search index last updated ${asset.aasSearchIndexedAt.toLocaleString("en-US", { timeZone: "UTC" })}`
+              : "Not yet indexed"}
+          </p>
+          <RefreshAasSearchIndexButton assetId={asset.id} />
         </div>
       )}
       <Link

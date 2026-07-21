@@ -43,7 +43,7 @@ const tree = makeNode({
       id: "site-1",
       name: "Plant A",
       parentId: "root",
-      assets: [{ id: "asset-1", name: "Sensor A", description: null }],
+      assets: [{ id: "asset-1", name: "Sensor A", description: null, aasSearchText: null }],
       children: [
         makeNode({
           id: "equip-1",
@@ -51,7 +51,7 @@ const tree = makeNode({
           level: AssetStructureLevel.EQUIPMENT,
           parentId: "site-1",
           description: "Old CNC machine",
-          assets: [{ id: "asset-2", name: "Gauge B", description: null }],
+          assets: [{ id: "asset-2", name: "Gauge B", description: null, aasSearchText: null }],
         }),
         makeNode({
           id: "equip-2",
@@ -196,7 +196,7 @@ describe("StructureNavTree", () => {
   it("renders an Unassigned Assets bucket listing every unassigned asset", () => {
     usePathname.mockReturnValue("/asset-structure/root");
 
-    renderTree([{ id: "asset-3", name: "Loose Sensor", description: null }]);
+    renderTree([{ id: "asset-3", name: "Loose Sensor", description: null, aasSearchText: null }]);
 
     expect(screen.getByText("Unassigned Assets")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Loose Sensor/ })).toHaveAttribute(
@@ -209,7 +209,7 @@ describe("StructureNavTree", () => {
     const user = userEvent.setup();
     usePathname.mockReturnValue("/asset-structure/root");
 
-    renderTree([{ id: "asset-3", name: "Loose Sensor", description: null }]);
+    renderTree([{ id: "asset-3", name: "Loose Sensor", description: null, aasSearchText: null }]);
 
     expect(screen.getByRole("link", { name: /Loose Sensor/ })).toBeInTheDocument();
 
@@ -312,8 +312,8 @@ describe("StructureNavTree", () => {
 
     renderTree(
       [
-        { id: "asset-3", name: "Loose Sensor", description: null },
-        { id: "asset-4", name: "Spare Gauge", description: null },
+        { id: "asset-3", name: "Loose Sensor", description: null, aasSearchText: null },
+        { id: "asset-4", name: "Spare Gauge", description: null, aasSearchText: null },
       ],
       "spare"
     );
@@ -328,7 +328,7 @@ describe("StructureNavTree", () => {
     usePathname.mockReturnValue("/asset-structure/root");
 
     renderTree(
-      [{ id: "asset-3", name: "Loose Sensor", description: null }],
+      [{ id: "asset-3", name: "Loose Sensor", description: null, aasSearchText: null }],
       "nonexistent"
     );
 

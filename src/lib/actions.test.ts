@@ -7,14 +7,18 @@ const { prisma } = vi.hoisted(() => ({
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      findUnique: vi.fn(),
     },
   },
 }));
+const { reindexAssetAas } = vi.hoisted(() => ({ reindexAssetAas: vi.fn() }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/prisma", () => ({ prisma }));
+vi.mock("@/lib/aas-reindex", () => ({ reindexAssetAas }));
 
-const { createAsset, updateAsset, deleteAsset } = await import("./actions");
+const { createAsset, updateAsset, deleteAsset, refreshAasSearchIndex } =
+  await import("./actions");
 
 function formDataWith(fields: Record<string, string>): FormData {
   const formData = new FormData();
@@ -26,6 +30,7 @@ function formDataWith(fields: Record<string, string>): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  reindexAssetAas.mockResolvedValue({ status: "no-reference" });
 });
 
 describe("createAsset", () => {
@@ -46,6 +51,8 @@ describe("createAsset", () => {
         assetImageType: null,
         nameplateImage: null,
         nameplateImageType: null,
+        aasSearchText: null,
+        aasSearchIndexedAt: null,
       },
     });
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure/table");
@@ -129,6 +136,36 @@ describe("createAsset", () => {
 
     arrayBufferSpy.mockRestore();
   });
+
+  it("stores the AAS search index when reindexing succeeds", async () => {
+    reindexAssetAas.mockResolvedValue({ status: "ok", text: "acme lathe", mirror: "mirrored" });
+    const formData = formDataWith({
+      name: "Lathe",
+      description: "Main lathe",
+      aasReference: "https://vendor.example/assets/lathe-1",
+    });
+
+    await createAsset({ error: null }, formData);
+
+    const [{ data }] = prisma.asset.create.mock.calls[0];
+    expect(data.aasSearchText).toBe("acme lathe");
+    expect(data.aasSearchIndexedAt).toBeInstanceOf(Date);
+  });
+
+  it("omits the search index fields (defaulting to unset) when reindexing fails", async () => {
+    reindexAssetAas.mockResolvedValue({ status: "failed" });
+    const formData = formDataWith({
+      name: "Lathe",
+      description: "Main lathe",
+      aasReference: "https://vendor.example/assets/lathe-1",
+    });
+
+    await createAsset({ error: null }, formData);
+
+    const [{ data }] = prisma.asset.create.mock.calls[0];
+    expect(data.aasSearchText).toBeUndefined();
+    expect(data.aasSearchIndexedAt).toBeUndefined();
+  });
 });
 
 describe("updateAsset", () => {
@@ -146,6 +183,8 @@ describe("updateAsset", () => {
         structureNodeId: null,
         aasEndpointUrl: null,
         aasGlobalAssetId: null,
+        aasSearchText: null,
+        aasSearchIndexedAt: null,
       },
     });
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure/table");
@@ -175,6 +214,8 @@ describe("updateAsset", () => {
         structureNodeId: null,
         aasEndpointUrl: null,
         aasGlobalAssetId: null,
+        aasSearchText: null,
+        aasSearchIndexedAt: null,
       },
     });
   });
@@ -280,6 +321,47 @@ describe("updateAsset", () => {
 
     arrayBufferSpy.mockRestore();
   });
+
+  it("refreshes the AAS search index when reindexing succeeds", async () => {
+    reindexAssetAas.mockResolvedValue({ status: "ok", text: "acme lathe", mirror: "mirrored" });
+    const formData = formDataWith({
+      name: "Lathe",
+      description: "Main lathe",
+      aasReference: "https://vendor.example/assets/lathe-1",
+    });
+
+    await updateAsset("asset-1", { error: null }, formData);
+
+    const [{ data }] = prisma.asset.update.mock.calls[0];
+    expect(data.aasSearchText).toBe("acme lathe");
+    expect(data.aasSearchIndexedAt).toBeInstanceOf(Date);
+  });
+
+  it("clears the AAS search index when the reference is removed", async () => {
+    reindexAssetAas.mockResolvedValue({ status: "no-reference" });
+    const formData = formDataWith({ name: "Lathe", description: "Main lathe" });
+
+    await updateAsset("asset-1", { error: null }, formData);
+
+    const [{ data }] = prisma.asset.update.mock.calls[0];
+    expect(data.aasSearchText).toBeNull();
+    expect(data.aasSearchIndexedAt).toBeNull();
+  });
+
+  it("leaves the existing AAS search index untouched when reindexing fails", async () => {
+    reindexAssetAas.mockResolvedValue({ status: "failed" });
+    const formData = formDataWith({
+      name: "Lathe",
+      description: "Main lathe",
+      aasReference: "https://vendor.example/assets/lathe-1",
+    });
+
+    await updateAsset("asset-1", { error: null }, formData);
+
+    const [{ data }] = prisma.asset.update.mock.calls[0];
+    expect(data.aasSearchText).toBeUndefined();
+    expect(data.aasSearchIndexedAt).toBeUndefined();
+  });
 });
 
 describe("deleteAsset", () => {
@@ -291,5 +373,85 @@ describe("deleteAsset", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure/table");
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
+  });
+});
+
+describe("refreshAasSearchIndex", () => {
+  it("returns an error when the asset doesn't exist", async () => {
+    prisma.asset.findUnique.mockResolvedValue(null);
+
+    const result = await refreshAasSearchIndex("missing-asset");
+
+    expect(result).toEqual({ error: "Asset not found.", mirrorWarning: null });
+    expect(reindexAssetAas).not.toHaveBeenCalled();
+  });
+
+  it("returns an error when the asset has no AAS reference", async () => {
+    prisma.asset.findUnique.mockResolvedValue({
+      aasEndpointUrl: null,
+      aasGlobalAssetId: null,
+    });
+    reindexAssetAas.mockResolvedValue({ status: "no-reference" });
+
+    const result = await refreshAasSearchIndex("asset-1");
+
+    expect(result).toEqual({
+      error: "This asset has no AAS reference to index.",
+      mirrorWarning: null,
+    });
+    expect(prisma.asset.update).not.toHaveBeenCalled();
+  });
+
+  it("returns an error without touching the existing index when the AAS repository can't be reached", async () => {
+    prisma.asset.findUnique.mockResolvedValue({
+      aasEndpointUrl: "https://vendor.example/shells/abc",
+      aasGlobalAssetId: null,
+    });
+    reindexAssetAas.mockResolvedValue({ status: "failed" });
+
+    const result = await refreshAasSearchIndex("asset-1");
+
+    expect(result).toEqual({
+      error: "Could not reach the configured AAS repository.",
+      mirrorWarning: null,
+    });
+    expect(prisma.asset.update).not.toHaveBeenCalled();
+  });
+
+  it("updates the search index and reports success when the mirror also succeeds", async () => {
+    prisma.asset.findUnique.mockResolvedValue({
+      aasEndpointUrl: "https://vendor.example/shells/abc",
+      aasGlobalAssetId: null,
+    });
+    reindexAssetAas.mockResolvedValue({ status: "ok", text: "acme lathe", mirror: "mirrored" });
+
+    const result = await refreshAasSearchIndex("asset-1");
+
+    expect(result).toEqual({ error: null, mirrorWarning: null });
+    expect(prisma.asset.update).toHaveBeenCalledWith({
+      where: { id: "asset-1" },
+      data: { aasSearchText: "acme lathe", aasSearchIndexedAt: expect.any(Date) },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/asset-structure/table");
+    expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
+  });
+
+  it("succeeds but reports a mirror warning when mirroring fails", async () => {
+    prisma.asset.findUnique.mockResolvedValue({
+      aasEndpointUrl: "https://vendor.example/shells/abc",
+      aasGlobalAssetId: null,
+    });
+    reindexAssetAas.mockResolvedValue({
+      status: "ok",
+      text: "acme lathe",
+      mirror: "mirror-failed",
+    });
+
+    const result = await refreshAasSearchIndex("asset-1");
+
+    expect(result).toEqual({
+      error: null,
+      mirrorWarning: "Search index updated, but mirroring to the local AAS repository failed.",
+    });
   });
 });

@@ -82,8 +82,8 @@ describe("buildStructureTree", () => {
         name: "Acme",
         parentId: null,
         assets: [
-          { id: "a1", name: "Sensor", description: null },
-          { id: "a2", name: "Actuator", description: null },
+          { id: "a1", name: "Sensor", description: null, aasSearchText: null },
+          { id: "a2", name: "Actuator", description: null, aasSearchText: null },
         ],
       }),
     ];
@@ -92,8 +92,8 @@ describe("buildStructureTree", () => {
 
     expect(tree).toMatchObject({ id: "root", name: "Acme", assetCount: 2 });
     expect(tree?.assets).toEqual([
-      { id: "a1", name: "Sensor", description: null },
-      { id: "a2", name: "Actuator", description: null },
+      { id: "a1", name: "Sensor", description: null, aasSearchText: null },
+      { id: "a2", name: "Actuator", description: null, aasSearchText: null },
     ]);
     expect(tree?.children).toEqual([]);
   });
@@ -144,7 +144,7 @@ describe("getAssetStructureTree", () => {
     expect(prisma.assetStructureNode.findMany).toHaveBeenCalledWith({
       include: {
         assets: {
-          select: { id: true, name: true, description: true },
+          select: { id: true, name: true, description: true, aasSearchText: true },
           orderBy: { name: "asc" },
         },
       },
@@ -340,7 +340,7 @@ describe("getUnassignedAssets", () => {
 
     expect(prisma.asset.findMany).toHaveBeenCalledWith({
       where: { structureNodeId: null },
-      select: { id: true, name: true, description: true },
+      select: { id: true, name: true, description: true, aasSearchText: true },
       orderBy: { name: "asc" },
     });
     expect(result).toEqual([{ id: "a2", name: "Loose Sensor" }]);

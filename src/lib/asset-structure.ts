@@ -7,6 +7,7 @@ export type StructureNodeAsset = {
   id: string;
   name: string;
   description: string | null;
+  aasSearchText: string | null;
 };
 
 type RawStructureNode = {
@@ -80,7 +81,7 @@ export const getAssetStructureTree = cache(
     const nodes = await prisma.assetStructureNode.findMany({
       include: {
         assets: {
-          select: { id: true, name: true, description: true },
+          select: { id: true, name: true, description: true, aasSearchText: true },
           orderBy: { name: "asc" },
         },
       },
@@ -148,7 +149,7 @@ export async function getFlattenedStructureOptions(): Promise<
 export function getUnassignedAssets(): Promise<StructureNodeAsset[]> {
   return prisma.asset.findMany({
     where: { structureNodeId: null },
-    select: { id: true, name: true, description: true },
+    select: { id: true, name: true, description: true, aasSearchText: true },
     orderBy: { name: "asc" },
   });
 }

@@ -31,7 +31,7 @@ export function SearchableAssetTable({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search assets"
+            placeholder="Search assets and linked AAS data"
             aria-label="Search assets"
             className="w-full rounded-full border border-outline bg-surface py-2 pr-3 pl-9 md-body-large text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
           />

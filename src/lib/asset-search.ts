@@ -8,12 +8,20 @@ function textIncludes(text: string | null | undefined, query: string): boolean {
 }
 
 export function assetMatchesSearch(
-  asset: { name: string; description: string | null },
+  asset: {
+    name: string;
+    description: string | null;
+    aasSearchText?: string | null;
+  },
   query: string
 ): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return textIncludes(asset.name, q) || textIncludes(asset.description, q);
+  return (
+    textIncludes(asset.name, q) ||
+    textIncludes(asset.description, q) ||
+    textIncludes(asset.aasSearchText, q)
+  );
 }
 
 /**
@@ -56,6 +64,7 @@ export function filterAssetsWithStructurePath(
     (asset) =>
       textIncludes(asset.name, q) ||
       textIncludes(asset.description, q) ||
-      textIncludes(asset.structurePath, q)
+      textIncludes(asset.structurePath, q) ||
+      textIncludes(asset.aasSearchText, q)
   );
 }

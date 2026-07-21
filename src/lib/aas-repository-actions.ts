@@ -10,6 +10,8 @@ import {
 export type ActionState = { error: string | null };
 
 const SETTINGS_PATH = "/settings/aas-repositories";
+const LOCAL_MIRROR_MANAGED_MESSAGE =
+  "The local AAS mirror is managed by the platform and can't be edited or deleted.";
 
 export async function createAasRepository(
   _prevState: ActionState,
@@ -52,6 +54,11 @@ export async function updateAasRepository(
     throw error;
   }
 
+  const target = await prisma.aasRepository.findUnique({ where: { id } });
+  if (target?.isLocalMirror) {
+    return { error: LOCAL_MIRROR_MANAGED_MESSAGE };
+  }
+
   const existing = await prisma.aasRepository.findUnique({
     where: { baseUrl: input.baseUrl },
   });
@@ -65,15 +72,37 @@ export async function updateAasRepository(
 }
 
 export async function deleteAasRepository(id: string): Promise<void> {
+  const target = await prisma.aasRepository.findUnique({ where: { id } });
+  if (target?.isLocalMirror) {
+    throw new Error(LOCAL_MIRROR_MANAGED_MESSAGE);
+  }
+
   await prisma.aasRepository.delete({ where: { id } });
   revalidatePath(SETTINGS_PATH);
 }
 
 const CONNECTION_TEST_TIMEOUT_MS = 5000;
+// A single slow/stalled response from a third-party AAS repository (seen
+// live against WAGO's Cloudflare-fronted backend: headers arrived but the
+// body never did) shouldn't be reported as "unreachable" - one retry after a
+// short pause is usually enough to tell a transient hiccup from a real
+// outage.
+const RETRY_DELAY_MS = 1500;
 
 export type AasRepositoryConnectionResult =
   | { status: "reachable" }
   | { status: "unreachable" };
+
+async function attemptConnection(baseUrl: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${baseUrl}/shells?limit=1`, {
+      signal: AbortSignal.timeout(CONNECTION_TEST_TIMEOUT_MS),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 export async function testAasRepositoryConnection(
   baseUrl: string
@@ -83,12 +112,12 @@ export async function testAasRepositoryConnection(
     return { status: "unreachable" };
   }
 
-  try {
-    const response = await fetch(`${trimmed}/shells?limit=1`, {
-      signal: AbortSignal.timeout(CONNECTION_TEST_TIMEOUT_MS),
-    });
-    return response.ok ? { status: "reachable" } : { status: "unreachable" };
-  } catch {
-    return { status: "unreachable" };
+  if (await attemptConnection(trimmed)) {
+    return { status: "reachable" };
   }
+
+  await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+  return (await attemptConnection(trimmed))
+    ? { status: "reachable" }
+    : { status: "unreachable" };
 }

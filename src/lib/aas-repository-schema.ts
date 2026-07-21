@@ -1,6 +1,9 @@
 export class AasRepositoryValidationError extends Error {}
 
-export type AasRepositoryInput = { name: string; baseUrl: string };
+export type AasRepositoryInput = {
+  name: string;
+  baseUrl: string;
+};
 
 const MAX_NAME_LENGTH = 200;
 
@@ -36,5 +39,8 @@ export function parseAasRepositoryInput(formData: FormData): AasRepositoryInput 
     );
   }
 
-  return { name, baseUrl: stripTrailingSlash(trimmedBaseUrl) };
+  return {
+    name,
+    baseUrl: stripTrailingSlash(trimmedBaseUrl),
+  };
 }

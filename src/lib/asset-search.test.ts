@@ -47,6 +47,24 @@ describe("assetMatchesSearch", () => {
       assetMatchesSearch({ name: "Sensor A", description: null }, "pressure")
     ).toBe(false);
   });
+
+  it("matches by aasSearchText", () => {
+    expect(
+      assetMatchesSearch(
+        { name: "Sensor A", description: null, aasSearchText: "nameplate voltage 230v" },
+        "230v"
+      )
+    ).toBe(true);
+  });
+
+  it("does not match a null aasSearchText", () => {
+    expect(
+      assetMatchesSearch(
+        { name: "Sensor A", description: null, aasSearchText: null },
+        "230v"
+      )
+    ).toBe(false);
+  });
 });
 
 describe("filterStructureTree", () => {
@@ -64,7 +82,7 @@ describe("filterStructureTree", () => {
     createdAt: now,
     updatedAt: now,
     assetCount: 1,
-    assets: [{ id: "a2", name: "Gauge B", description: null }],
+    assets: [{ id: "a2", name: "Gauge B", description: null, aasSearchText: null }],
     children: [],
   };
   const site1 = {
@@ -81,7 +99,7 @@ describe("filterStructureTree", () => {
     createdAt: now,
     updatedAt: now,
     assetCount: 1,
-    assets: [{ id: "a1", name: "Sensor A", description: null }],
+    assets: [{ id: "a1", name: "Sensor A", description: null, aasSearchText: null }],
     children: [equip1],
   };
   const site2 = {
@@ -146,7 +164,7 @@ describe("filterStructureTree", () => {
     expect(result?.children).toHaveLength(1);
     expect(result?.children[0]?.assets).toEqual([]);
     expect(result?.children[0]?.children[0]?.assets).toEqual([
-      { id: "a2", name: "Gauge B", description: null },
+      { id: "a2", name: "Gauge B", description: null, aasSearchText: null },
     ]);
   });
 
@@ -154,9 +172,27 @@ describe("filterStructureTree", () => {
     const result = filterStructureTree(root, "sensor a");
 
     expect(result?.children[0]?.assets).toEqual([
-      { id: "a1", name: "Sensor A", description: null },
+      { id: "a1", name: "Sensor A", description: null, aasSearchText: null },
     ]);
     expect(result?.children[0]?.children).toEqual([]);
+  });
+
+  it("keeps the ancestor chain down to a descendant asset matching only by aasSearchText", () => {
+    const equipWithAasMatch = {
+      ...equip1,
+      assets: [
+        { id: "a3", name: "Motor C", description: null, aasSearchText: "rated voltage 400v" },
+      ],
+    };
+    const siteWithAasMatch = { ...site1, children: [equipWithAasMatch] };
+    const rootWithAasMatch = { ...root, children: [siteWithAasMatch, site2] };
+
+    const result = filterStructureTree(rootWithAasMatch, "400v");
+
+    expect(result?.children[0]?.assets).toEqual([]);
+    expect(result?.children[0]?.children[0]?.assets).toEqual([
+      { id: "a3", name: "Motor C", description: null, aasSearchText: "rated voltage 400v" },
+    ]);
   });
 
   it("returns null when nothing in the tree matches", () => {
@@ -177,6 +213,8 @@ describe("filterAssetsWithStructurePath", () => {
       nameplateImageType: null,
       aasEndpointUrl: null,
       aasGlobalAssetId: null,
+      aasSearchText: null,
+      aasSearchIndexedAt: null,
       createdAt: now,
       updatedAt: now,
       structurePath: null,
@@ -219,6 +257,15 @@ describe("filterAssetsWithStructurePath", () => {
     expect(filterAssetsWithStructurePath(assets, "plant a")).toEqual([
       assets[0],
     ]);
+  });
+
+  it("matches by aasSearchText", () => {
+    const assets = [
+      makeAsset({ aasSearchText: "nameplate voltage 230v" }),
+      makeAsset({ aasSearchText: "nameplate voltage 400v" }),
+    ];
+
+    expect(filterAssetsWithStructurePath(assets, "230v")).toEqual([assets[0]]);
   });
 
   it("returns an empty array when nothing matches", () => {

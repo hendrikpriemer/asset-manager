@@ -4,8 +4,28 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { parseAssetInput, AssetValidationError } from "@/lib/asset-schema";
 import { parseAssetImage, AssetImageValidationError } from "@/lib/asset-images";
+import { reindexAssetAas, type ReindexResult } from "@/lib/aas-reindex";
 
 export type ActionState = { error: string | null };
+
+/**
+ * Applies a reindex result to the fields to persist: a removed reference
+ * clears the index, a successful fetch refreshes it, and a failed fetch
+ * leaves the previous value alone (the fields are simply omitted, so an
+ * `update` doesn't touch them - a transient outage at the AAS repository
+ * shouldn't wipe out the last known-good search index).
+ */
+function aasIndexUpdateData(
+  result: ReindexResult
+): { aasSearchText?: string | null; aasSearchIndexedAt?: Date | null } {
+  if (result.status === "no-reference") {
+    return { aasSearchText: null, aasSearchIndexedAt: null };
+  }
+  if (result.status === "ok") {
+    return { aasSearchText: result.text, aasSearchIndexedAt: new Date() };
+  }
+  return {};
+}
 
 export async function createAsset(
   _prevState: ActionState,
@@ -37,6 +57,11 @@ export async function createAsset(
     throw error;
   }
 
+  const reindexResult = await reindexAssetAas({
+    aasEndpointUrl: input.aasEndpointUrl,
+    aasGlobalAssetId: input.aasGlobalAssetId,
+  });
+
   await prisma.asset.create({
     data: {
       ...input,
@@ -44,6 +69,7 @@ export async function createAsset(
       assetImageType: assetImage?.type ?? null,
       nameplateImage: nameplateImage?.data ?? null,
       nameplateImageType: nameplateImage?.type ?? null,
+      ...aasIndexUpdateData(reindexResult),
     },
   });
   revalidatePath("/asset-structure/table");
@@ -87,6 +113,8 @@ export async function updateAsset(
     assetImageType?: string | null;
     nameplateImage?: Uint8Array<ArrayBuffer> | null;
     nameplateImageType?: string | null;
+    aasSearchText?: string | null;
+    aasSearchIndexedAt?: Date | null;
   } = { ...input };
 
   if (assetImage) {
@@ -105,6 +133,12 @@ export async function updateAsset(
     data.nameplateImageType = null;
   }
 
+  const reindexResult = await reindexAssetAas({
+    aasEndpointUrl: input.aasEndpointUrl,
+    aasGlobalAssetId: input.aasGlobalAssetId,
+  });
+  Object.assign(data, aasIndexUpdateData(reindexResult));
+
   await prisma.asset.update({ where: { id }, data });
   revalidatePath("/asset-structure/table");
   revalidatePath("/asset-structure", "layout");
@@ -115,4 +149,48 @@ export async function deleteAsset(id: string): Promise<void> {
   await prisma.asset.delete({ where: { id } });
   revalidatePath("/asset-structure/table");
   revalidatePath("/asset-structure", "layout");
+}
+
+export type RefreshAasSearchIndexResult = {
+  error: string | null;
+  mirrorWarning: string | null;
+};
+
+export async function refreshAasSearchIndex(
+  assetId: string
+): Promise<RefreshAasSearchIndexResult> {
+  const asset = await prisma.asset.findUnique({
+    where: { id: assetId },
+    select: { aasEndpointUrl: true, aasGlobalAssetId: true },
+  });
+  if (!asset) {
+    return { error: "Asset not found.", mirrorWarning: null };
+  }
+
+  const result = await reindexAssetAas(asset);
+
+  if (result.status === "no-reference") {
+    return { error: "This asset has no AAS reference to index.", mirrorWarning: null };
+  }
+  if (result.status === "failed") {
+    return {
+      error: "Could not reach the configured AAS repository.",
+      mirrorWarning: null,
+    };
+  }
+
+  await prisma.asset.update({
+    where: { id: assetId },
+    data: { aasSearchText: result.text, aasSearchIndexedAt: new Date() },
+  });
+  revalidatePath("/asset-structure/table");
+  revalidatePath("/asset-structure", "layout");
+
+  return {
+    error: null,
+    mirrorWarning:
+      result.mirror === "mirror-failed"
+        ? "Search index updated, but mirroring to the local AAS repository failed."
+        : null,
+  };
 }

@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { deleteAasRepository } from "@/lib/aas-repository-actions";
+import { AasRepositoryStatusIndicator } from "@/components/AasRepositoryStatusIndicator";
 import { DeleteAasRepositoryButton } from "@/components/DeleteAasRepositoryButton";
 import { Icon } from "@/components/Icon";
 import { Tooltip } from "@/components/Tooltip";
 
-type AasRepositoryListItem = { id: string; name: string; baseUrl: string };
+type AasRepositoryListItem = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  isLocalMirror: boolean;
+};
 
 export function AasRepositoriesSection({
   repositories,
@@ -50,31 +56,39 @@ export function AasRepositoriesSection({
               className="flex items-center justify-between gap-4 rounded-xs border border-outline-variant px-4 py-3"
             >
               <div className="flex flex-col">
-                <span className="md-label-large text-on-surface">
+                <span className="flex items-center gap-2 md-label-large text-on-surface">
                   {repository.name}
+                  {repository.isLocalMirror && (
+                    <span className="rounded-full bg-primary-container px-2 py-0.5 md-label-small text-on-primary-container">
+                      Local mirror
+                    </span>
+                  )}
                 </span>
                 <span className="md-body-small text-on-surface-variant">
                   {repository.baseUrl}
                 </span>
+                <AasRepositoryStatusIndicator baseUrl={repository.baseUrl} />
               </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <Tooltip label="Edit">
-                  <Link
-                    href={`/settings/aas-repositories/edit/${repository.id}`}
-                    aria-label={`Edit ${repository.name}`}
-                    className="inline-flex items-center justify-center rounded-full p-2 text-on-surface-variant hover:bg-on-surface/8"
-                  >
-                    <Icon name="edit" />
-                  </Link>
-                </Tooltip>
-                <Tooltip label="Delete">
-                  <DeleteAasRepositoryButton
-                    repositoryId={repository.id}
-                    repositoryName={repository.name}
-                    deleteAasRepositoryAction={deleteAasRepository}
-                  />
-                </Tooltip>
-              </div>
+              {!repository.isLocalMirror && (
+                <div className="flex shrink-0 items-center gap-1">
+                  <Tooltip label="Edit">
+                    <Link
+                      href={`/settings/aas-repositories/edit/${repository.id}`}
+                      aria-label={`Edit ${repository.name}`}
+                      className="inline-flex items-center justify-center rounded-full p-2 text-on-surface-variant hover:bg-on-surface/8"
+                    >
+                      <Icon name="edit" />
+                    </Link>
+                  </Tooltip>
+                  <Tooltip label="Delete">
+                    <DeleteAasRepositoryButton
+                      repositoryId={repository.id}
+                      repositoryName={repository.name}
+                      deleteAasRepositoryAction={deleteAasRepository}
+                    />
+                  </Tooltip>
+                </div>
+              )}
             </li>
           ))}
         </ul>

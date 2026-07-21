@@ -36,6 +36,8 @@ function makeAsset(overrides: Partial<StructureNodeAsset> = {}): StructureNodeAs
     nameplateImageType: null,
     aasEndpointUrl: null,
     aasGlobalAssetId: null,
+    aasSearchText: null,
+    aasSearchIndexedAt: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,

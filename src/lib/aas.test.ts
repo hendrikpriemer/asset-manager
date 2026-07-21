@@ -6,7 +6,7 @@ const { prisma } = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({ prisma }));
 
-const { getAasData } = await import("./aas");
+const { getAasData, getRawAasData, toAasData, encodeAasId } = await import("./aas");
 
 const REPO_BASE = "http://basyx-aas-env:8081";
 
@@ -981,5 +981,99 @@ describe("getAasData", () => {
 
       expect(result?.submodels[0].groups[0].displayName).toBe("General Information");
     });
+  });
+});
+
+describe("getRawAasData", () => {
+  it("returns the untransformed shell and submodel JSON", async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      fetchOne(url, {
+        "http://vendor.example/shells/abc": shell,
+        [`http://vendor.example/shells/${encode(shell.id)}/submodel-refs`]: submodelRefsPage,
+        [`http://vendor.example/submodels/${encode(nameplateSubmodel.id)}`]: nameplateSubmodel,
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getRawAasData({
+      aasEndpointUrl: "http://vendor.example/shells/abc",
+    });
+
+    expect(result).toEqual({
+      shell,
+      submodels: [nameplateSubmodel],
+    });
+  });
+
+  it("returns null when neither aasEndpointUrl nor aasGlobalAssetId is set", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await getRawAasData({})).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the shell can't be resolved", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(null, false)));
+
+    const result = await getRawAasData({
+      aasEndpointUrl: "http://vendor.example/shells/abc",
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null when the resolved shell has no id", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ idShort: "NoId" }))
+    );
+
+    const result = await getRawAasData({
+      aasEndpointUrl: "http://vendor.example/shells/abc",
+    });
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("toAasData", () => {
+  it("transforms a raw shell and submodels into the display shape", () => {
+    const result = toAasData({ shell, submodels: [nameplateSubmodel] });
+
+    expect(result).toEqual({
+      id: shell.id,
+      idShort: "Lathe1",
+      submodels: [
+        {
+          id: nameplateSubmodel.id,
+          idShort: "Nameplate",
+          displayName: null,
+          description: null,
+          templateName: null,
+          version: null,
+          properties: [
+            { idShort: "ManufacturerName", value: "Acme Machine Works" },
+            { idShort: "YearOfConstruction", value: "2019" },
+          ],
+          files: [],
+          groups: [],
+        },
+      ],
+    });
+  });
+
+  it("falls back to empty id/idShort when the shell lacks them", () => {
+    const result = toAasData({ shell: {}, submodels: [] });
+
+    expect(result).toEqual({ id: "", idShort: "", submodels: [] });
+  });
+});
+
+describe("encodeAasId", () => {
+  it("base64url-encodes an id", () => {
+    expect(encodeAasId("https://example.com/aas/abc")).toBe(
+      encode("https://example.com/aas/abc")
+    );
   });
 });
