@@ -1,99 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import type { AasData, AasElementGroup, AasSubmodelData } from "@/lib/aas";
-import { Icon } from "@/components/Icon";
+import type { AasData, AasSubmodelData } from "@/lib/aas";
+import { extractNameplateData } from "@/lib/aas-nameplate";
+import { AasElementGroupView } from "@/components/AasElementGroupView";
+import { NameplateVisualization } from "@/components/NameplateVisualization";
+
+type ViewMode = "overview" | "technical";
 
 function submodelTitle(submodel: AasSubmodelData): string {
   return submodel.displayName || submodel.templateName || submodel.idShort || submodel.id;
-}
-
-function groupTitle(group: AasElementGroup): string {
-  return group.displayName || group.idShort;
-}
-
-function ElementGroupView({
-  group,
-  depth,
-}: {
-  group: AasElementGroup;
-  depth: number;
-}) {
-  const indent = { paddingLeft: `${depth * 16}px` };
-
-  return (
-    <>
-      {(group.properties.length > 0 || group.files.length > 0) && (
-        <dl className="grid grid-cols-[max-content_1fr]">
-          {group.properties.map((property, index) => (
-            <div
-              key={`${property.idShort}-${index}`}
-              className="contents odd:bg-surface-container-low"
-            >
-              <dt
-                style={indent}
-                className="py-2 pr-4 md-body-small text-on-surface-variant"
-              >
-                {property.idShort}
-              </dt>
-              <dd className="py-2 pr-2 md-body-small text-on-surface">
-                {property.value ?? "—"}
-              </dd>
-            </div>
-          ))}
-          {group.files.map((file, index) => (
-            <div
-              key={`${file.idShort}-${index}`}
-              className="contents odd:bg-surface-container-low"
-            >
-              <dt
-                style={indent}
-                className="py-2 pr-4 md-body-small text-on-surface-variant"
-              >
-                {file.idShort || "File"}
-              </dt>
-              <dd className="py-2 pr-2 md-body-small">
-                {file.value ? (
-                  <a
-                    href={file.value}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    {file.contentType ?? "Download"}
-                  </a>
-                ) : (
-                  <span className="text-on-surface-variant">
-                    {file.contentType ?? "—"}
-                  </span>
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {group.groups.map((child) => (
-        <div key={child.idShort}>
-          <div
-            style={indent}
-            className="flex items-center gap-2 border-t border-outline-variant bg-surface-container-low py-2"
-          >
-            <Icon name="folder" className="text-on-surface-variant" />
-            <span className="md-title-small text-on-surface">
-              {groupTitle(child)}
-            </span>
-          </div>
-          <ElementGroupView group={child} depth={depth + 1} />
-        </div>
-      ))}
-    </>
-  );
 }
 
 export function AasViewer({ aasData }: { aasData: AasData }) {
   const [selectedId, setSelectedId] = useState(
     aasData.submodels[0]?.id ?? null
   );
+  const [mode, setMode] = useState<ViewMode>("overview");
 
   if (aasData.submodels.length === 0) {
     return (
@@ -105,6 +28,12 @@ export function AasViewer({ aasData }: { aasData: AasData }) {
 
   const selected =
     aasData.submodels.find((submodel) => submodel.id === selectedId) ?? null;
+  const nameplate = selected ? extractNameplateData(selected) : null;
+
+  function selectSubmodel(id: string) {
+    setSelectedId(id);
+    setMode("overview");
+  }
 
   return (
     <div className="flex gap-4">
@@ -115,7 +44,7 @@ export function AasViewer({ aasData }: { aasData: AasData }) {
             <li key={submodel.id}>
               <button
                 type="button"
-                onClick={() => setSelectedId(submodel.id)}
+                onClick={() => selectSubmodel(submodel.id)}
                 aria-current={isSelected ? "true" : undefined}
                 className={`flex w-full items-center gap-2 rounded-xs border px-3 py-2 text-left ${
                   isSelected
@@ -146,18 +75,52 @@ export function AasViewer({ aasData }: { aasData: AasData }) {
 
       {selected && (
         <div className="min-w-0 flex-1 rounded-xs border border-outline-variant">
-          <div className="border-b border-outline-variant p-4">
-            <h3 className="md-title-medium text-on-surface">
-              {submodelTitle(selected)}
-            </h3>
-            {selected.description && (
-              <p className="md-body-small text-on-surface-variant">
-                {selected.description}
-              </p>
+          <div className="flex items-start justify-between gap-4 border-b border-outline-variant p-4">
+            <div>
+              <h3 className="md-title-medium text-on-surface">
+                {submodelTitle(selected)}
+              </h3>
+              {selected.description && (
+                <p className="md-body-small text-on-surface-variant">
+                  {selected.description}
+                </p>
+              )}
+            </div>
+            {nameplate && (
+              <div className="flex shrink-0 gap-1 rounded-full border border-outline-variant p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setMode("overview")}
+                  aria-pressed={mode === "overview"}
+                  className={`rounded-full px-3 py-1 md-label-small ${
+                    mode === "overview"
+                      ? "bg-primary text-on-primary"
+                      : "text-on-surface-variant hover:bg-on-surface/8"
+                  }`}
+                >
+                  Overview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("technical")}
+                  aria-pressed={mode === "technical"}
+                  className={`rounded-full px-3 py-1 md-label-small ${
+                    mode === "technical"
+                      ? "bg-primary text-on-primary"
+                      : "text-on-surface-variant hover:bg-on-surface/8"
+                  }`}
+                >
+                  Technical
+                </button>
+              </div>
             )}
           </div>
           <div className="overflow-x-auto px-4">
-            <ElementGroupView group={selected} depth={0} />
+            {nameplate && mode === "overview" ? (
+              <NameplateVisualization nameplate={nameplate} />
+            ) : (
+              <AasElementGroupView group={selected} depth={0} />
+            )}
           </div>
         </div>
       )}

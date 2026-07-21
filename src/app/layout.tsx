@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Roboto } from "next/font/google";
 import { Sidebar } from "@/components/Sidebar";
 import { ToastProvider } from "@/components/ToastProvider";
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 const roboto = Roboto({

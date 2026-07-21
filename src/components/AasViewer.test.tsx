@@ -179,188 +179,75 @@ describe("AasViewer", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders top-level properties with their values, defaulting a null value to an em dash", () => {
-    render(
-      <AasViewer
-        aasData={makeAasData([
-          makeSubmodel({
-            properties: [
-              { idShort: "ManufacturerName", value: "WAGO" },
-              { idShort: "YearOfConstruction", value: null },
-            ],
-          }),
-        ])}
-      />
-    );
+  describe("Overview/Technical toggle", () => {
+    function makeNameplateSubmodel(
+      overrides: Partial<AasSubmodelData> = {}
+    ): AasSubmodelData {
+      return makeSubmodel({
+        templateName: "Digital Nameplate for industrial equipment",
+        properties: [{ idShort: "ManufacturerName", value: "Acme Machine Works" }],
+        ...overrides,
+      });
+    }
 
-    expect(screen.getByText("ManufacturerName")).toBeInTheDocument();
-    expect(screen.getByText("WAGO")).toBeInTheDocument();
-    expect(screen.getByText("YearOfConstruction")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
-  });
+    it("does not show the toggle for a submodel without a recognized visualization", () => {
+      render(<AasViewer aasData={makeAasData([makeSubmodel()])} />);
 
-  it("renders a File with a value as a clickable link labeled with its contentType", () => {
-    render(
-      <AasViewer
-        aasData={makeAasData([
-          makeSubmodel({
-            files: [
-              {
-                idShort: "DigitalFile",
-                value: "https://example.com/part.stp",
-                contentType: "application/step",
-              },
-            ],
-          }),
-        ])}
-      />
-    );
+      expect(
+        screen.queryByRole("button", { name: "Overview" })
+      ).not.toBeInTheDocument();
+    });
 
-    expect(screen.getByText("DigitalFile")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "application/step" });
-    expect(link).toHaveAttribute("href", "https://example.com/part.stp");
-    expect(link).toHaveAttribute("target", "_blank");
-  });
+    it("shows the toggle for a recognized Nameplate submodel, defaulting to Overview", () => {
+      render(<AasViewer aasData={makeAasData([makeNameplateSubmodel()])} />);
 
-  it("labels a File link 'Download' when it has no contentType", () => {
-    render(
-      <AasViewer
-        aasData={makeAasData([
-          makeSubmodel({
-            files: [
-              { idShort: "Unknown", value: "https://example.com/x", contentType: null },
-            ],
-          }),
-        ])}
-      />
-    );
+      expect(
+        screen.getByRole("button", { name: "Overview" })
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        screen.getByRole("button", { name: "Technical" })
+      ).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByText("Manufacturer")).toBeInTheDocument();
+      expect(screen.queryByText("ManufacturerName")).not.toBeInTheDocument();
+    });
 
-    expect(screen.getByRole("link", { name: "Download" })).toBeInTheDocument();
-  });
+    it("switches to the generic technical table when Technical is clicked", async () => {
+      const user = userEvent.setup();
+      render(<AasViewer aasData={makeAasData([makeNameplateSubmodel()])} />);
 
-  it("falls back to a File's idShort label when it is blank", () => {
-    render(
-      <AasViewer
-        aasData={makeAasData([
-          makeSubmodel({
-            files: [{ idShort: "", value: "https://example.com/x", contentType: null }],
-          }),
-        ])}
-      />
-    );
+      await user.click(screen.getByRole("button", { name: "Technical" }));
 
-    expect(screen.getByText("File")).toBeInTheDocument();
-  });
+      expect(
+        screen.getByRole("button", { name: "Technical" })
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByText("ManufacturerName")).toBeInTheDocument();
+      expect(screen.queryByText("Manufacturer")).not.toBeInTheDocument();
 
-  it("shows a File without a value as plain text with its contentType, not a link", () => {
-    render(
-      <AasViewer
-        aasData={makeAasData([
-          makeSubmodel({
-            files: [
-              { idShort: "Missing", value: null, contentType: "application/pdf" },
-            ],
-          }),
-        ])}
-      />
-    );
+      await user.click(screen.getByRole("button", { name: "Overview" }));
 
-    expect(screen.getByText("Missing")).toBeInTheDocument();
-    expect(screen.getByText("application/pdf")).toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-  });
+      expect(
+        screen.getByRole("button", { name: "Overview" })
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByText("Manufacturer")).toBeInTheDocument();
+    });
 
-  it("shows an em dash for a valueless File with no contentType either", () => {
-    render(
-      <AasViewer
-        aasData={makeAasData([
-          makeSubmodel({
-            files: [{ idShort: "Missing", value: null, contentType: null }],
-          }),
-        ])}
-      />
-    );
+    it("resets to Overview when switching to a different submodel", async () => {
+      const user = userEvent.setup();
+      render(
+        <AasViewer
+          aasData={makeAasData([
+            makeNameplateSubmodel({ id: "sm-1", displayName: "Nameplate 1" }),
+            makeNameplateSubmodel({ id: "sm-2", displayName: "Nameplate 2" }),
+          ])}
+        />
+      );
 
-    expect(screen.getByText("—")).toBeInTheDocument();
-  });
+      await user.click(screen.getByRole("button", { name: "Technical" }));
+      await user.click(screen.getByRole("button", { name: /Nameplate 2/ }));
 
-  it("renders nested groups as folder-style section headers, using idShort when there is no displayName", () => {
-    render(
-      <AasViewer
-        aasData={makeAasData([
-          makeSubmodel({
-            groups: [
-              {
-                idShort: "GeneralInformation",
-                displayName: null,
-                properties: [{ idShort: "ManufacturerName", value: "WAGO" }],
-                files: [],
-                groups: [],
-              },
-            ],
-          }),
-        ])}
-      />
-    );
-
-    expect(screen.getByText("GeneralInformation")).toBeInTheDocument();
-    expect(screen.getByText("ManufacturerName")).toBeInTheDocument();
-    expect(screen.getByText("WAGO")).toBeInTheDocument();
-  });
-
-  it("uses a group's displayName over its idShort for the section header", () => {
-    render(
-      <AasViewer
-        aasData={makeAasData([
-          makeSubmodel({
-            groups: [
-              {
-                idShort: "GeneralInformation",
-                displayName: "General Information",
-                properties: [],
-                files: [],
-                groups: [],
-              },
-            ],
-          }),
-        ])}
-      />
-    );
-
-    expect(screen.getByText("General Information")).toBeInTheDocument();
-    expect(screen.queryByText("GeneralInformation")).not.toBeInTheDocument();
-  });
-
-  it("renders multiple levels of nested groups", () => {
-    render(
-      <AasViewer
-        aasData={makeAasData([
-          makeSubmodel({
-            groups: [
-              {
-                idShort: "Outer",
-                displayName: null,
-                properties: [],
-                files: [],
-                groups: [
-                  {
-                    idShort: "Inner",
-                    displayName: null,
-                    properties: [{ idShort: "Leaf", value: "deep-value" }],
-                    files: [],
-                    groups: [],
-                  },
-                ],
-              },
-            ],
-          }),
-        ])}
-      />
-    );
-
-    expect(screen.getByText("Outer")).toBeInTheDocument();
-    expect(screen.getByText("Inner")).toBeInTheDocument();
-    expect(screen.getByText("Leaf")).toBeInTheDocument();
-    expect(screen.getByText("deep-value")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Overview" })
+      ).toHaveAttribute("aria-pressed", "true");
+    });
   });
 });

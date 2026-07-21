@@ -494,6 +494,32 @@ describe("StructureNodeRow", () => {
       );
     });
 
+    it("shows a spinner while the rename form's timezone lookup is in flight", async () => {
+      const user = userEvent.setup();
+      let resolveLookup!: (timezone: string | null) => void;
+      lookupTimezone.mockImplementation(
+        () => new Promise((resolve) => (resolveLookup = resolve))
+      );
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Rename" }));
+      await user.type(screen.getByLabelText("Address"), "Minden, Germany");
+      await user.tab();
+
+      expect(
+        await screen.findByRole("status", { name: "Detecting timezone" })
+      ).toBeInTheDocument();
+
+      resolveLookup("Europe/Berlin");
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("status", { name: "Detecting timezone" })
+        ).not.toBeInTheDocument()
+      );
+    });
+
     it("does not look up the timezone when the rename form's address field is blurred empty", async () => {
       const user = userEvent.setup();
       const { site } = buildFixtureTree();
@@ -579,6 +605,32 @@ describe("StructureNodeRow", () => {
       );
       await waitFor(() =>
         expect(screen.getByLabelText("Timezone")).toHaveValue("Europe/Berlin")
+      );
+    });
+
+    it("shows a spinner while the add-child form's timezone lookup is in flight", async () => {
+      const user = userEvent.setup();
+      let resolveLookup!: (timezone: string | null) => void;
+      lookupTimezone.mockImplementation(
+        () => new Promise((resolve) => (resolveLookup = resolve))
+      );
+      const { site } = buildFixtureTree();
+
+      renderRow(site);
+      await user.click(screen.getByRole("button", { name: "Add child" }));
+      await user.type(screen.getByLabelText("Address"), "Minden, Germany");
+      await user.tab();
+
+      expect(
+        await screen.findByRole("status", { name: "Detecting timezone" })
+      ).toBeInTheDocument();
+
+      resolveLookup("Europe/Berlin");
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("status", { name: "Detecting timezone" })
+        ).not.toBeInTheDocument()
       );
     });
 

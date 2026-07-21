@@ -1,12 +1,13 @@
 /**
- * Best-effort timezone lookup for a free-text address, via Open-Meteo's free
- * geocoding API (no API key required). The API's place-name search doesn't
- * reliably handle full comma-separated addresses, so we try the likely
- * city segment first, then the address as a whole. Ambiguous place names
- * (e.g. "Minden" exists in both Germany and the US) are disambiguated with
- * a small, deliberately non-exhaustive map from country name to ISO code
- * parsed from the address's last segment - unmapped countries simply skip
- * that disambiguation step and fall back to the top match.
+ * Best-effort timezone and coordinate lookup for a free-text address, via
+ * Open-Meteo's free geocoding API (no API key required). The API's
+ * place-name search doesn't reliably handle full comma-separated addresses,
+ * so we try the likely city segment first, then the address as a whole.
+ * Ambiguous place names (e.g. "Minden" exists in both Germany and the US)
+ * are disambiguated with a small, deliberately non-exhaustive map from
+ * country name to ISO code parsed from the address's last segment -
+ * unmapped countries simply skip that disambiguation step and fall back to
+ * the top match.
  */
 
 const FETCH_TIMEOUT_MS = 5000;
@@ -45,7 +46,12 @@ const COUNTRY_NAME_TO_CODE: Record<string, string> = {
   australien: "AU",
 };
 
-type GeocodingResult = { country_code?: string; timezone?: string };
+type GeocodingResult = {
+  country_code?: string;
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+};
 
 function resolveCountryCode(segment: string | undefined): string | null {
   if (!segment) return null;
@@ -59,7 +65,12 @@ function candidateQueries(address: string): string[] {
     .filter(Boolean);
   if (segments.length === 0) return [];
   const city = segments.length >= 2 ? segments[segments.length - 2] : segments[0];
-  return [...new Set([city, address])];
+  // A "city" segment formatted as "<postal code> <city>" (e.g. a postal
+  // address's zip+city line, with no comma between them) isn't a place name
+  // Open-Meteo's search can match - strip the leading postal code first and
+  // try that before falling back to the segment as-is.
+  const cityWithoutPostalCode = city.replace(/^\d+\s*/, "");
+  return [...new Set([cityWithoutPostalCode, city, address])];
 }
 
 async function fetchGeocodingResults(query: string): Promise<GeocodingResult[]> {
@@ -97,6 +108,31 @@ export async function lookupTimezoneForAddress(
     const timezone = (preferred ?? results[0])?.timezone;
     if (timezone) {
       return timezone;
+    }
+  }
+
+  return null;
+}
+
+export async function lookupCoordinatesForAddress(
+  address: string
+): Promise<{ lat: number; lon: number } | null> {
+  const trimmed = address.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const segments = trimmed.split(",").map((segment) => segment.trim());
+  const countryCode = resolveCountryCode(segments[segments.length - 1]);
+
+  for (const query of candidateQueries(trimmed)) {
+    const results = await fetchGeocodingResults(query);
+    const preferred = countryCode
+      ? results.find((result) => result.country_code === countryCode)
+      : undefined;
+    const match = preferred ?? results[0];
+    if (typeof match?.latitude === "number" && typeof match?.longitude === "number") {
+      return { lat: match.latitude, lon: match.longitude };
     }
   }
 

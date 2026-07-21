@@ -1,10 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
 const { getAasData } = vi.hoisted(() => ({ getAasData: vi.fn() }));
+const { lookupCoordinatesForAddress } = vi.hoisted(() => ({
+  lookupCoordinatesForAddress: vi.fn(),
+}));
 
 vi.mock("@/lib/aas", () => ({ getAasData }));
+vi.mock("@/lib/timezone", () => ({ lookupCoordinatesForAddress }));
 
-const { checkAasReference } = await import("./aas-actions");
+const { checkAasReference, lookupNameplateCoordinates } = await import(
+  "./aas-actions"
+);
 
 describe("checkAasReference", () => {
   it("returns unresolved when the reference could not be resolved", async () => {
@@ -49,5 +55,22 @@ describe("checkAasReference", () => {
       status: "resolved",
       idShort: "https://example.com/aas/abc",
     });
+  });
+});
+
+describe("lookupNameplateCoordinates", () => {
+  it("delegates to the shared geocoding lookup", async () => {
+    lookupCoordinatesForAddress.mockResolvedValue({ lat: 52.29, lon: 8.91 });
+
+    const result = await lookupNameplateCoordinates("Minden, Germany");
+
+    expect(result).toEqual({ lat: 52.29, lon: 8.91 });
+    expect(lookupCoordinatesForAddress).toHaveBeenCalledWith("Minden, Germany");
+  });
+
+  it("returns null when the address can't be geocoded", async () => {
+    lookupCoordinatesForAddress.mockResolvedValue(null);
+
+    expect(await lookupNameplateCoordinates("Nowhere")).toBeNull();
   });
 });

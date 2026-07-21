@@ -225,6 +225,32 @@ describe("AssetWizard (create mode)", () => {
     ).toBeEnabled();
   });
 
+  it("shows a spinner while the connection check is in flight", async () => {
+    let resolveCheck!: (result: AasCheckResult) => void;
+    checkAasReference.mockImplementation(
+      () => new Promise((resolve) => (resolveCheck = resolve))
+    );
+    render(<AssetWizard mode="create" structureOptions={[]} />);
+    const user = await goToAasStep();
+    await user.type(
+      screen.getByLabelText("AAS endpoint URL or global asset ID"),
+      "http://example.com/shells/abc"
+    );
+
+    await user.click(screen.getByRole("button", { name: /Test connection/ }));
+
+    expect(
+      screen.getByRole("status", { name: "Checking connection" })
+    ).toBeInTheDocument();
+
+    resolveCheck({ status: "resolved", idShort: "TestLathe1" });
+
+    expect(await screen.findByText("Resolved: TestLathe1")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Checking connection" })
+    ).not.toBeInTheDocument();
+  });
+
   it("classifies a value containing /shells/ as an endpoint URL when testing the connection", async () => {
     checkAasReference.mockResolvedValue({
       status: "resolved",

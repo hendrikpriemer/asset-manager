@@ -15,6 +15,7 @@ import { checkAasReference, type AasCheckResult } from "@/lib/aas-actions";
 import type { StructureOption } from "@/lib/asset-structure";
 import { Button } from "@/components/Button";
 import { ImageCaptureField } from "@/components/ImageCaptureField";
+import { Spinner } from "@/components/Spinner";
 
 const STEPS = [
   "Identify",
@@ -325,7 +326,10 @@ export function AssetWizard(props: AssetWizardProps) {
                 onClick={handleCheckAas}
                 disabled={isCheckingAas || !aasReference}
               >
-                {isCheckingAas ? "Checking…" : "Test connection"}
+                <span className="flex items-center gap-2">
+                  {isCheckingAas && <Spinner label="Checking connection" />}
+                  {isCheckingAas ? "Checking…" : "Test connection"}
+                </span>
               </Button>
               {aasCheckResult?.status === "resolved" && (
                 <p role="status" className="md-body-small text-on-surface">

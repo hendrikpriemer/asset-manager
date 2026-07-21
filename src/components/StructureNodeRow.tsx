@@ -17,6 +17,7 @@ import { lookupTimezone } from "@/lib/timezone-actions";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { LevelBadge } from "@/components/LevelBadge";
+import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/ToastProvider";
 
 type Mode = "view" | "rename" | "add";
@@ -218,18 +219,26 @@ export function StructureNodeRow({
                 <label className="sr-only" htmlFor={`timezone-${node.id}`}>
                   Timezone
                 </label>
-                <input
-                  id={`timezone-${node.id}`}
-                  name="timezone"
-                  value={renameTimezone}
-                  onChange={(event) => setRenameTimezone(event.target.value)}
-                  placeholder={
-                    isLookingUpRenameTimezone
-                      ? "Detecting timezone…"
-                      : "Timezone (optional)"
-                  }
-                  className={FIELD_CLASSES}
-                />
+                <div className="relative">
+                  <input
+                    id={`timezone-${node.id}`}
+                    name="timezone"
+                    value={renameTimezone}
+                    onChange={(event) => setRenameTimezone(event.target.value)}
+                    placeholder={
+                      isLookingUpRenameTimezone
+                        ? "Detecting timezone…"
+                        : "Timezone (optional)"
+                    }
+                    className={`${FIELD_CLASSES} ${isLookingUpRenameTimezone ? "pr-8" : ""}`}
+                  />
+                  {isLookingUpRenameTimezone && (
+                    <Spinner
+                      label="Detecting timezone"
+                      className="absolute top-1/2 right-2 -translate-y-1/2"
+                    />
+                  )}
+                </div>
               </>
             )}
             {node.level === "EQUIPMENT" && (
@@ -381,18 +390,26 @@ export function StructureNodeRow({
               <label className="sr-only" htmlFor={`new-timezone-${node.id}`}>
                 Timezone
               </label>
-              <input
-                id={`new-timezone-${node.id}`}
-                name="timezone"
-                value={addTimezone}
-                onChange={(event) => setAddTimezone(event.target.value)}
-                placeholder={
-                  isLookingUpAddTimezone
-                    ? "Detecting timezone…"
-                    : "Timezone (optional)"
-                }
-                className={FIELD_CLASSES}
-              />
+              <div className="relative">
+                <input
+                  id={`new-timezone-${node.id}`}
+                  name="timezone"
+                  value={addTimezone}
+                  onChange={(event) => setAddTimezone(event.target.value)}
+                  placeholder={
+                    isLookingUpAddTimezone
+                      ? "Detecting timezone…"
+                      : "Timezone (optional)"
+                  }
+                  className={`${FIELD_CLASSES} ${isLookingUpAddTimezone ? "pr-8" : ""}`}
+                />
+                {isLookingUpAddTimezone && (
+                  <Spinner
+                    label="Detecting timezone"
+                    className="absolute top-1/2 right-2 -translate-y-1/2"
+                  />
+                )}
+              </div>
             </>
           )}
           {addLevel === "EQUIPMENT" && (
