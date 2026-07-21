@@ -178,11 +178,71 @@ describe("getAasData", () => {
     prisma.aasRepository.findMany.mockResolvedValue([
       { id: "repo-1", name: "Local BaSyx", baseUrl: REPO_BASE },
     ]);
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ result: [] })));
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("assetIds")) {
+        return jsonResponse({ result: [] });
+      }
+      // The shell-id fallback also finds nothing.
+      return jsonResponse(null, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const result = await getAasData({ aasGlobalAssetId: "https://example.com/assets/none" });
 
     expect(result).toBeNull();
+  });
+
+  it("falls back to treating the value as a shell's own id when no repository's globalAssetId matches", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "Local BaSyx", baseUrl: REPO_BASE },
+    ]);
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("assetIds")) {
+        return jsonResponse({ result: [] });
+      }
+      if (url === `${REPO_BASE}/shells/${encode(shell.id)}`) {
+        return jsonResponse(shell);
+      }
+      if (url === `${REPO_BASE}/shells/${encode(shell.id)}/submodel-refs`) {
+        return jsonResponse({ result: [] });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasGlobalAssetId: shell.id });
+
+    expect(result?.id).toBe(shell.id);
+  });
+
+  it("tries the shell-id fallback across every configured repository until one matches", async () => {
+    const otherRepoBase = "https://c1.api.wago.com/smartdata-aas-env";
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "Local BaSyx", baseUrl: REPO_BASE },
+      { id: "repo-2", name: "WAGO", baseUrl: otherRepoBase },
+    ]);
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("assetIds")) {
+        return jsonResponse({ result: [] });
+      }
+      if (url === `${REPO_BASE}/shells/${encode(shell.id)}`) {
+        return jsonResponse(null, false);
+      }
+      if (url === `${otherRepoBase}/shells/${encode(shell.id)}`) {
+        return jsonResponse(shell);
+      }
+      if (url === `${otherRepoBase}/shells/${encode(shell.id)}/submodel-refs`) {
+        return jsonResponse({ result: [] });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasGlobalAssetId: shell.id });
+
+    expect(result?.id).toBe(shell.id);
   });
 
   it("tries each configured repository in turn until one has a matching shell", async () => {

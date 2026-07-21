@@ -178,6 +178,22 @@ async function resolveShellByGlobalAssetId(
     }
   }
 
+  // The pasted value might actually be a shell's own `id` rather than its
+  // globalAssetId - the two are easy to mix up, since both are plain URLs
+  // and a shell's `id` often appears right next to `globalAssetId` in a
+  // repository's raw JSON. Only tried once the search above has come up
+  // empty everywhere, so the common (correct) case isn't slowed down by it.
+  const encodedId = encodeAasId(globalAssetId);
+  const idPages = await Promise.all(
+    repositories.map((repository) => fetchJson(`${repository.baseUrl}/shells/${encodedId}`))
+  );
+
+  for (let i = 0; i < repositories.length; i++) {
+    if (idPages[i]) {
+      return { shell: idPages[i] as Record<string, unknown>, baseUrl: repositories[i].baseUrl };
+    }
+  }
+
   return null;
 }
 
