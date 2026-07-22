@@ -418,6 +418,24 @@ describe("refreshAasSearchIndex", () => {
     expect(prisma.asset.update).not.toHaveBeenCalled();
   });
 
+  it("returns an error without touching the existing index when the AAS fetch was incomplete", async () => {
+    prisma.asset.findUnique.mockResolvedValue({
+      aasEndpointUrl: "https://vendor.example/shells/abc",
+      aasGlobalAssetId: null,
+    });
+    reindexAssetAas.mockResolvedValue({ status: "incomplete" });
+
+    const result = await refreshAasSearchIndex("asset-1");
+
+    expect(result).toEqual({
+      error:
+        "Some parts of this asset's AAS data could not be retrieved - the search index and mirror were not updated.",
+      mirrorWarning: null,
+    });
+    expect(prisma.asset.update).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
   it("updates the search index and reports success when the mirror also succeeds", async () => {
     prisma.asset.findUnique.mockResolvedValue({
       aasEndpointUrl: "https://vendor.example/shells/abc",

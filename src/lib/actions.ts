@@ -178,6 +178,13 @@ export async function refreshAasSearchIndex(
       mirrorWarning: null,
     };
   }
+  if (result.status === "incomplete") {
+    return {
+      error:
+        "Some parts of this asset's AAS data could not be retrieved - the search index and mirror were not updated.",
+      mirrorWarning: null,
+    };
+  }
 
   await prisma.asset.update({
     where: { id: assetId },

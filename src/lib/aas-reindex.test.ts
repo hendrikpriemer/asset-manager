@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getRawAasData, toAasData } = vi.hoisted(() => ({
   getRawAasData: vi.fn(),
@@ -17,6 +17,10 @@ vi.mock("@/lib/aas-mirror", () => ({ mirrorAasDataToLocalRepo }));
 
 const { reindexAssetAas } = await import("./aas-reindex");
 
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
 describe("reindexAssetAas", () => {
   it("returns no-reference without fetching when neither field is set", async () => {
     const result = await reindexAssetAas({});
@@ -34,7 +38,7 @@ describe("reindexAssetAas", () => {
   });
 
   it("builds the search text and mirrors from the same raw fetch, reporting the mirror status", async () => {
-    const raw = { shell: { id: "abc" }, submodels: [] };
+    const raw = { shell: { id: "abc" }, submodels: [], complete: true };
     const transformed = { id: "abc", idShort: "Abc", submodels: [] };
     getRawAasData.mockResolvedValue(raw);
     toAasData.mockReturnValue(transformed);
@@ -50,7 +54,7 @@ describe("reindexAssetAas", () => {
   });
 
   it("still reports ok when mirroring fails - a failed mirror doesn't block the search text update", async () => {
-    getRawAasData.mockResolvedValue({ shell: { id: "abc" }, submodels: [] });
+    getRawAasData.mockResolvedValue({ shell: { id: "abc" }, submodels: [], complete: true });
     toAasData.mockReturnValue({ id: "abc", idShort: "Abc", submodels: [] });
     buildAasSearchText.mockReturnValue("abc searchable text");
     mirrorAasDataToLocalRepo.mockResolvedValue("mirror-failed");
@@ -62,5 +66,16 @@ describe("reindexAssetAas", () => {
       text: "abc searchable text",
       mirror: "mirror-failed",
     });
+  });
+
+  it("returns incomplete without updating the search text or mirror when the raw fetch was partial", async () => {
+    getRawAasData.mockResolvedValue({ shell: { id: "abc" }, submodels: [], complete: false });
+
+    const result = await reindexAssetAas({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result).toEqual({ status: "incomplete" });
+    expect(toAasData).not.toHaveBeenCalled();
+    expect(buildAasSearchText).not.toHaveBeenCalled();
+    expect(mirrorAasDataToLocalRepo).not.toHaveBeenCalled();
   });
 });

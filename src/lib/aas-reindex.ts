@@ -14,6 +14,7 @@ import { mirrorAasDataToLocalRepo, type MirrorStatus } from "@/lib/aas-mirror";
 export type ReindexResult =
   | { status: "no-reference" }
   | { status: "failed" }
+  | { status: "incomplete" }
   | { status: "ok"; text: string; mirror: MirrorStatus };
 
 export async function reindexAssetAas(reference: AasReference): Promise<ReindexResult> {
@@ -24,6 +25,13 @@ export async function reindexAssetAas(reference: AasReference): Promise<ReindexR
   const raw = await getRawAasData(reference);
   if (!raw) {
     return { status: "failed" };
+  }
+  if (!raw.complete) {
+    // A partial fetch (e.g. one submodel didn't come through) must not be
+    // cached or mirrored as if it were the real thing - a once-incomplete
+    // mirror copy would keep winning future resolutions over the real,
+    // complete source.
+    return { status: "incomplete" };
   }
 
   const text = buildAasSearchText(toAasData(raw));

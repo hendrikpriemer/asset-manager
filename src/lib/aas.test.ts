@@ -10,6 +10,16 @@ const { getAasData, getRawAasData, toAasData, encodeAasId } = await import("./aa
 
 const REPO_BASE = "http://basyx-aas-env:8081";
 
+// Mirrors lib/aas.ts's own FETCH_RETRY_DELAY_MS - every failing fetch is
+// retried once after this pause, so tests that exercise a failure path
+// need to fast-forward past it under fake timers.
+const FETCH_RETRY_DELAY_MS = 1500;
+
+async function awaitAfterRetryDelay<T>(promise: Promise<T>): Promise<T> {
+  await vi.advanceTimersByTimeAsync(FETCH_RETRY_DELAY_MS);
+  return promise;
+}
+
 function encode(value: string): string {
   return Buffer.from(value, "utf-8").toString("base64url");
 }
@@ -57,10 +67,12 @@ async function fetchOne(
 
 beforeEach(() => {
   prisma.aasRepository.findMany.mockReset().mockResolvedValue([]);
+  vi.useFakeTimers();
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("getAasData", () => {
@@ -118,9 +130,27 @@ describe("getAasData", () => {
   it("returns null when the direct endpoint responds with a non-ok status", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(null, false)));
 
-    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+    const result = await awaitAfterRetryDelay(
+      getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" })
+    );
 
     expect(result).toBeNull();
+  });
+
+  it("succeeds on the automatic retry after an initial failed attempt", async () => {
+    const fetchMock = vi
+      .fn<(url: string) => Promise<Response>>()
+      .mockResolvedValueOnce(jsonResponse(null, false))
+      .mockResolvedValueOnce(jsonResponse(shell))
+      .mockResolvedValueOnce(jsonResponse({ result: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await awaitAfterRetryDelay(
+      getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" })
+    );
+
+    expect(result?.id).toBe(shell.id);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("returns null when the fetch call throws", async () => {
@@ -131,7 +161,9 @@ describe("getAasData", () => {
       })
     );
 
-    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+    const result = await awaitAfterRetryDelay(
+      getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" })
+    );
 
     expect(result).toBeNull();
   });
@@ -187,7 +219,9 @@ describe("getAasData", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await getAasData({ aasGlobalAssetId: "https://example.com/assets/none" });
+    const result = await awaitAfterRetryDelay(
+      getAasData({ aasGlobalAssetId: "https://example.com/assets/none" })
+    );
 
     expect(result).toBeNull();
   });
@@ -245,7 +279,7 @@ describe("getAasData", () => {
     expect(result?.id).toBe(shell.id);
   });
 
-  it("tries each configured repository in turn until one has a matching shell", async () => {
+  it("tries each configured repository concurrently until one has a matching shell", async () => {
     const otherRepoBase = "https://c1.api.wago.com/smartdata-aas-env";
     prisma.aasRepository.findMany.mockResolvedValue([
       { id: "repo-1", name: "Local BaSyx", baseUrl: REPO_BASE },
@@ -277,6 +311,33 @@ describe("getAasData", () => {
       expect.stringContaining(otherRepoBase),
       expect.anything()
     );
+  });
+
+  it("resolves from a fast repository without waiting on a slower/stalled one", async () => {
+    const slowRepoBase = "https://slow-vendor.example";
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "Slow vendor", baseUrl: slowRepoBase },
+      { id: "repo-2", name: "Local BaSyx", baseUrl: REPO_BASE },
+    ]);
+
+    const fetchMock = vi.fn((url: string) => {
+      if (url.startsWith(slowRepoBase)) {
+        // Never resolves within this test - simulates a stalled repository.
+        return new Promise<Response>(() => {});
+      }
+      if (url.startsWith(REPO_BASE) && url.includes("assetIds")) {
+        return Promise.resolve(jsonResponse({ result: [shell] }));
+      }
+      if (url === `${REPO_BASE}/shells/${encode(shell.id)}/submodel-refs`) {
+        return Promise.resolve(jsonResponse({ result: [] }));
+      }
+      return Promise.reject(new Error(`unexpected URL: ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasGlobalAssetId: "https://example.com/assets/lathe-1" });
+
+    expect(result?.id).toBe(shell.id);
   });
 
   it("prefers aasEndpointUrl over aasGlobalAssetId when both are set", async () => {
@@ -351,7 +412,9 @@ describe("getAasData", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+    const result = await awaitAfterRetryDelay(
+      getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" })
+    );
 
     expect(result?.submodels).toHaveLength(1);
     expect(result?.submodels[0].id).toBe(nameplateSubmodel.id);
@@ -1002,7 +1065,64 @@ describe("getRawAasData", () => {
     expect(result).toEqual({
       shell,
       submodels: [nameplateSubmodel],
+      complete: true,
     });
+  });
+
+  it("marks the result incomplete when the submodel-refs fetch itself fails", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) return jsonResponse(null, false);
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await awaitAfterRetryDelay(
+      getRawAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" })
+    );
+
+    expect(result).toEqual({ shell, submodels: [], complete: false });
+  });
+
+  it("marks the result incomplete when some (but not all) submodels fail to resolve", async () => {
+    const otherSubmodel = { modelType: "Submodel", id: "https://example.com/sm/other", idShort: "Other" };
+    const refsPage = {
+      result: [
+        { type: "ModelReference", keys: [{ type: "Submodel", value: nameplateSubmodel.id }] },
+        { type: "ModelReference", keys: [{ type: "Submodel", value: otherSubmodel.id }] },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) return jsonResponse(refsPage);
+      if (url === `http://vendor.example/submodels/${encode(nameplateSubmodel.id)}`) {
+        return jsonResponse(nameplateSubmodel);
+      }
+      if (url === `http://vendor.example/submodels/${encode(otherSubmodel.id)}`) {
+        return jsonResponse(null, false);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await awaitAfterRetryDelay(
+      getRawAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" })
+    );
+
+    expect(result).toEqual({ shell, submodels: [nameplateSubmodel], complete: false });
+  });
+
+  it("marks the result complete when a shell genuinely has zero submodel references", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) return jsonResponse({ result: [] });
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getRawAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result).toEqual({ shell, submodels: [], complete: true });
   });
 
   it("returns null when neither aasEndpointUrl nor aasGlobalAssetId is set", async () => {
@@ -1016,9 +1136,9 @@ describe("getRawAasData", () => {
   it("returns null when the shell can't be resolved", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(null, false)));
 
-    const result = await getRawAasData({
-      aasEndpointUrl: "http://vendor.example/shells/abc",
-    });
+    const result = await awaitAfterRetryDelay(
+      getRawAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" })
+    );
 
     expect(result).toBeNull();
   });
@@ -1039,7 +1159,7 @@ describe("getRawAasData", () => {
 
 describe("toAasData", () => {
   it("transforms a raw shell and submodels into the display shape", () => {
-    const result = toAasData({ shell, submodels: [nameplateSubmodel] });
+    const result = toAasData({ shell, submodels: [nameplateSubmodel], complete: true });
 
     expect(result).toEqual({
       id: shell.id,
@@ -1064,7 +1184,7 @@ describe("toAasData", () => {
   });
 
   it("falls back to empty id/idShort when the shell lacks them", () => {
-    const result = toAasData({ shell: {}, submodels: [] });
+    const result = toAasData({ shell: {}, submodels: [], complete: true });
 
     expect(result).toEqual({ id: "", idShort: "", submodels: [] });
   });

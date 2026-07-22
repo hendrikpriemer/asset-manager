@@ -23,6 +23,11 @@
 import { prisma } from "@/lib/prisma";
 
 const FETCH_TIMEOUT_MS = 5000;
+// Mirrors the same one-retry-after-a-pause approach used for the Settings
+// connection-status check (aas-repository-actions.ts) - a single slow/
+// stalled response (confirmed live against WAGO: headers arrive, body
+// never does) shouldn't be treated the same as a real outage.
+const FETCH_RETRY_DELAY_MS = 1500;
 
 // Guards against unbounded recursion on pathological/malicious data from a
 // third-party manufacturer repository we don't control.
@@ -138,7 +143,7 @@ function deriveBaseUrl(shellEndpointUrl: string): string {
   return index === -1 ? shellEndpointUrl : shellEndpointUrl.slice(0, index);
 }
 
-async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
+async function fetchJsonOnce(url: string): Promise<Record<string, unknown> | null> {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!response.ok) {
@@ -150,12 +155,42 @@ async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
   }
 }
 
+async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
+  const first = await fetchJsonOnce(url);
+  if (first) return first;
+  await new Promise((resolve) => setTimeout(resolve, FETCH_RETRY_DELAY_MS));
+  return fetchJsonOnce(url);
+}
+
 function asString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+async function tryAssetIdsMatch(
+  repository: { baseUrl: string },
+  filter: string
+): Promise<{ shell: Record<string, unknown>; baseUrl: string }> {
+  const page = await fetchJson(`${repository.baseUrl}/shells?assetIds=${filter}`);
+  const shell = asArray(page?.result)[0];
+  if (shell && typeof shell === "object") {
+    return { shell: shell as Record<string, unknown>, baseUrl: repository.baseUrl };
+  }
+  throw new Error("no assetIds match");
+}
+
+async function tryShellIdMatch(
+  repository: { baseUrl: string },
+  encodedId: string
+): Promise<{ shell: Record<string, unknown>; baseUrl: string }> {
+  const shell = await fetchJson(`${repository.baseUrl}/shells/${encodedId}`);
+  if (shell) {
+    return { shell, baseUrl: repository.baseUrl };
+  }
+  throw new Error("no shell at that id");
 }
 
 async function resolveShellByGlobalAssetId(
@@ -165,40 +200,33 @@ async function resolveShellByGlobalAssetId(
   const filter = Buffer.from(
     JSON.stringify({ name: "globalAssetId", value: globalAssetId })
   ).toString("base64url");
-
-  // Queried in parallel, each bounded by its own fetch timeout, so one slow
-  // or unresponsive repository doesn't add its full timeout on top of every
-  // other configured repository's.
-  const pages = await Promise.all(
-    repositories.map((repository) =>
-      fetchJson(`${repository.baseUrl}/shells?assetIds=${filter}`)
-    )
-  );
-
-  for (let i = 0; i < repositories.length; i++) {
-    const shell = asArray(pages[i]?.result)[0];
-    if (shell && typeof shell === "object") {
-      return { shell: shell as Record<string, unknown>, baseUrl: repositories[i].baseUrl };
-    }
-  }
-
-  // The pasted value might actually be a shell's own `id` rather than its
-  // globalAssetId - the two are easy to mix up, since both are plain URLs
-  // and a shell's `id` often appears right next to `globalAssetId` in a
-  // repository's raw JSON. Only tried once the search above has come up
-  // empty everywhere, so the common (correct) case isn't slowed down by it.
   const encodedId = encodeAasId(globalAssetId);
-  const idPages = await Promise.all(
-    repositories.map((repository) => fetchJson(`${repository.baseUrl}/shells/${encodedId}`))
-  );
 
-  for (let i = 0; i < repositories.length; i++) {
-    if (idPages[i]) {
-      return { shell: idPages[i] as Record<string, unknown>, baseUrl: repositories[i].baseUrl };
-    }
+  // Every repository's assetIds search AND id-based fallback (for when the
+  // pasted value turns out to be a shell's own id rather than its
+  // globalAssetId - easy to mix up, both being plain URLs) are raced
+  // together in one flat Promise.any: whichever answers first wins, so one
+  // slow or stalled repository never blocks a faster one - even a faster
+  // *fallback* answer from a different repository. An earlier version kept
+  // the two strategies as separate sequential tiers to prefer a genuine
+  // assetIds match over a coincidental id-based one, but that reintroduced
+  // exactly the "wait for the slowest repository" problem this is meant to
+  // fix: a fully-settled tier only needs one slow/stalled repository (with
+  // its own retry) to hold up ever considering the other tier's already-
+  // resolved answer (confirmed live - a 52ms local-mirror hit still waited
+  // ~11.5s behind a stalled WAGO assetIds request). The rare remaining risk
+  // - a coincidental id match outrunning a slower genuine assetIds match -
+  // is an acceptable trade for not blocking on the slowest repository.
+  const attempts = repositories.flatMap((repository) => [
+    tryAssetIdsMatch(repository, filter),
+    tryShellIdMatch(repository, encodedId),
+  ]);
+
+  try {
+    return await Promise.any(attempts);
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
 async function resolveShell(
@@ -373,26 +401,39 @@ function toSubmodelData(submodel: Record<string, unknown>): AasSubmodelData {
 async function fetchRawSubmodels(
   baseUrl: string,
   aasId: string
-): Promise<Record<string, unknown>[]> {
+): Promise<{ submodels: Record<string, unknown>[]; complete: boolean }> {
   const refsPage = await fetchJson(
     `${baseUrl}/shells/${encodeAasId(aasId)}/submodel-refs`
   );
-  const submodelIds = asArray(refsPage?.result)
+  if (!refsPage) {
+    // We don't even know how many submodels there are supposed to be -
+    // can't call this complete.
+    return { submodels: [], complete: false };
+  }
+
+  const submodelIds = asArray(refsPage.result)
     .map(extractSubmodelId)
     .filter((id): id is string => id !== null);
 
   const submodels = await Promise.all(
     submodelIds.map((id) => fetchJson(`${baseUrl}/submodels/${encodeAasId(id)}`))
   );
-
-  return submodels.filter(
+  const resolved = submodels.filter(
     (submodel): submodel is Record<string, unknown> => submodel !== null
   );
+
+  return { submodels: resolved, complete: resolved.length === submodelIds.length };
 }
 
 export type RawAasData = {
   shell: Record<string, unknown>;
   submodels: Record<string, unknown>[];
+  // False when a submodel-refs or submodel fetch failed, so this is known
+  // to be a partial copy of the source AAS - callers that cache or mirror
+  // this data (lib/aas-reindex.ts) should not treat it as complete, since a
+  // once-incomplete mirror copy would otherwise keep winning future
+  // resolutions over the real, complete source.
+  complete: boolean;
 };
 
 /**
@@ -415,10 +456,8 @@ export async function getRawAasData(
     return null;
   }
 
-  return {
-    shell: resolved.shell,
-    submodels: await fetchRawSubmodels(resolved.baseUrl, aasId),
-  };
+  const { submodels, complete } = await fetchRawSubmodels(resolved.baseUrl, aasId);
+  return { shell: resolved.shell, submodels, complete };
 }
 
 export function toAasData(raw: RawAasData): AasData {
