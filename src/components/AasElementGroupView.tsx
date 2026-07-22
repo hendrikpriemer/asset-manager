@@ -1,5 +1,7 @@
-import type { AasElementGroup } from "@/lib/aas";
+import type { AasElementGroup, AasSubmodelFile } from "@/lib/aas";
+import { isImageContentType, isPreviewableContentType } from "@/lib/file-preview";
 import { Icon } from "@/components/Icon";
+import { Button } from "@/components/Button";
 
 function groupTitle(group: AasElementGroup): string {
   return group.displayName || group.idShort;
@@ -8,9 +10,15 @@ function groupTitle(group: AasElementGroup): string {
 export function AasElementGroupView({
   group,
   depth,
+  groupPath = [],
+  onPreview,
+  getFileUrl,
 }: {
   group: AasElementGroup;
   depth: number;
+  groupPath?: string[];
+  onPreview?: (file: AasSubmodelFile, groupPath: string[]) => void;
+  getFileUrl?: (file: AasSubmodelFile, groupPath: string[]) => string;
 }) {
   const indent = { paddingLeft: `${depth * 16}px` };
 
@@ -45,16 +53,35 @@ export function AasElementGroupView({
               >
                 {file.idShort || "File"}
               </dt>
-              <dd className="py-2 pr-2 md-body-small">
+              <dd className="flex items-center gap-3 py-2 pr-2 md-body-small">
                 {file.value ? (
-                  <a
-                    href={file.value}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    {file.contentType ?? "Download"}
-                  </a>
+                  <>
+                    {getFileUrl && isImageContentType(file.contentType) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={getFileUrl(file, groupPath)}
+                        alt={file.idShort || "Image"}
+                        className="h-16 w-16 rounded-xs object-cover"
+                      />
+                    )}
+                    <a
+                      href={file.value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      {file.contentType ?? "Download"}
+                    </a>
+                    {onPreview && isPreviewableContentType(file.contentType) && (
+                      <Button
+                        type="button"
+                        variant="text"
+                        onClick={() => onPreview(file, groupPath)}
+                      >
+                        Preview
+                      </Button>
+                    )}
+                  </>
                 ) : (
                   <span className="text-on-surface-variant">
                     {file.contentType ?? "—"}
@@ -76,7 +103,13 @@ export function AasElementGroupView({
               {groupTitle(child)}
             </span>
           </div>
-          <AasElementGroupView group={child} depth={depth + 1} />
+          <AasElementGroupView
+            group={child}
+            depth={depth + 1}
+            groupPath={[...groupPath, child.idShort]}
+            onPreview={onPreview}
+            getFileUrl={getFileUrl}
+          />
         </div>
       ))}
     </>

@@ -69,7 +69,7 @@ export function AssetDetailPanel({
               <p className="mb-2 md-body-medium text-on-surface">
                 {aasData.idShort || aasData.id}
               </p>
-              <AasViewer aasData={aasData} />
+              <AasViewer aasData={aasData} assetId={asset.id} />
             </div>
           ) : (
             <p className="md-body-small text-on-surface-variant">

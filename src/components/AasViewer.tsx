@@ -1,22 +1,39 @@
 "use client";
 
 import { useState } from "react";
-import type { AasData, AasSubmodelData } from "@/lib/aas";
+import type { AasData, AasSubmodelData, AasSubmodelFile } from "@/lib/aas";
 import { extractNameplateData } from "@/lib/aas-nameplate";
 import { AasElementGroupView } from "@/components/AasElementGroupView";
 import { NameplateVisualization } from "@/components/NameplateVisualization";
+import { FilePreviewDialog } from "@/components/FilePreviewDialog";
 
 type ViewMode = "overview" | "technical";
+
+type PreviewTarget = {
+  submodelId: string;
+  groupPath: string[];
+  file: AasSubmodelFile;
+};
 
 function submodelTitle(submodel: AasSubmodelData): string {
   return submodel.displayName || submodel.templateName || submodel.idShort || submodel.id;
 }
 
-export function AasViewer({ aasData }: { aasData: AasData }) {
+function previewProxyUrl(assetId: string, target: PreviewTarget): string {
+  const params = new URLSearchParams({
+    submodelId: target.submodelId,
+    fileIdShort: target.file.idShort,
+    groupPath: JSON.stringify(target.groupPath),
+  });
+  return `/api/assets/${assetId}/aas-files?${params.toString()}`;
+}
+
+export function AasViewer({ aasData, assetId }: { aasData: AasData; assetId: string }) {
   const [selectedId, setSelectedId] = useState(
     aasData.submodels[0]?.id ?? null
   );
   const [mode, setMode] = useState<ViewMode>("overview");
+  const [preview, setPreview] = useState<PreviewTarget | null>(null);
 
   if (aasData.submodels.length === 0) {
     return (
@@ -119,10 +136,27 @@ export function AasViewer({ aasData }: { aasData: AasData }) {
             {nameplate && mode === "overview" ? (
               <NameplateVisualization nameplate={nameplate} />
             ) : (
-              <AasElementGroupView group={selected} depth={0} />
+              <AasElementGroupView
+                group={selected}
+                depth={0}
+                onPreview={(file, groupPath) =>
+                  setPreview({ submodelId: selected.id, groupPath, file })
+                }
+                getFileUrl={(file, groupPath) =>
+                  previewProxyUrl(assetId, { submodelId: selected.id, groupPath, file })
+                }
+              />
             )}
           </div>
         </div>
+      )}
+
+      {preview && (
+        <FilePreviewDialog
+          file={preview.file}
+          fileUrl={previewProxyUrl(assetId, preview)}
+          onClose={() => setPreview(null)}
+        />
       )}
     </div>
   );

@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AasElementGroupView } from "./AasElementGroupView";
 import type { AasElementGroup } from "@/lib/aas";
 
@@ -177,5 +178,173 @@ describe("AasElementGroupView", () => {
     expect(screen.getByText("Inner")).toBeInTheDocument();
     expect(screen.getByText("Leaf")).toBeInTheDocument();
     expect(screen.getByText("deep-value")).toBeInTheDocument();
+  });
+
+  it("shows a Preview button for a previewable content type and calls onPreview with the file and its group path", async () => {
+    const user = userEvent.setup();
+    const onPreview = vi.fn();
+    const file = {
+      idShort: "Drawing",
+      value: "https://example.com/part.stp",
+      contentType: "application/step",
+    };
+
+    render(
+      <AasElementGroupView
+        group={makeGroup({ files: [file] })}
+        depth={0}
+        groupPath={["Documents"]}
+        onPreview={onPreview}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(onPreview).toHaveBeenCalledWith(file, ["Documents"]);
+  });
+
+  it("does not show a Preview button when onPreview is not provided", () => {
+    render(
+      <AasElementGroupView
+        group={makeGroup({
+          files: [
+            {
+              idShort: "Drawing",
+              value: "https://example.com/part.stp",
+              contentType: "application/step",
+            },
+          ],
+        })}
+        depth={0}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Preview" })).not.toBeInTheDocument();
+  });
+
+  it("does not show a Preview button for a non-previewable content type", () => {
+    render(
+      <AasElementGroupView
+        group={makeGroup({
+          files: [
+            { idShort: "Data", value: "https://example.com/data.csv", contentType: "text/csv" },
+          ],
+        })}
+        depth={0}
+        onPreview={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Preview" })).not.toBeInTheDocument();
+  });
+
+  it("renders an inline image thumbnail for an image content type when getFileUrl is provided", () => {
+    render(
+      <AasElementGroupView
+        group={makeGroup({
+          files: [
+            {
+              idShort: "ProductImage",
+              value: "https://example.com/product.jpg",
+              contentType: "image/jpeg",
+            },
+          ],
+        })}
+        depth={0}
+        groupPath={["GeneralInformation"]}
+        getFileUrl={(file, groupPath) =>
+          `/proxy?file=${file.idShort}&path=${groupPath.join(",")}`
+        }
+      />
+    );
+
+    const image = screen.getByRole("img", { name: "ProductImage" });
+    expect(image).toHaveAttribute(
+      "src",
+      "/proxy?file=ProductImage&path=GeneralInformation"
+    );
+    expect(screen.getByRole("link", { name: "image/jpeg" })).toHaveAttribute(
+      "href",
+      "https://example.com/product.jpg"
+    );
+  });
+
+  it("falls back to 'Image' alt text for an image file with a blank idShort", () => {
+    render(
+      <AasElementGroupView
+        group={makeGroup({
+          files: [
+            { idShort: "", value: "https://example.com/product.jpg", contentType: "image/jpeg" },
+          ],
+        })}
+        depth={0}
+        getFileUrl={() => "/proxy"}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: "Image" })).toBeInTheDocument();
+  });
+
+  it("does not render an image thumbnail without getFileUrl", () => {
+    render(
+      <AasElementGroupView
+        group={makeGroup({
+          files: [
+            {
+              idShort: "ProductImage",
+              value: "https://example.com/product.jpg",
+              contentType: "image/jpeg",
+            },
+          ],
+        })}
+        depth={0}
+      />
+    );
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("does not render an image thumbnail for a non-image content type", () => {
+    render(
+      <AasElementGroupView
+        group={makeGroup({
+          files: [
+            {
+              idShort: "Drawing",
+              value: "https://example.com/part.stp",
+              contentType: "application/step",
+            },
+          ],
+        })}
+        depth={0}
+        getFileUrl={() => "/proxy"}
+      />
+    );
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("extends the group path with each nested group's idShort when calling onPreview", async () => {
+    const user = userEvent.setup();
+    const onPreview = vi.fn();
+    const file = {
+      idShort: "Manual",
+      value: "https://example.com/manual.pdf",
+      contentType: "application/pdf",
+    };
+
+    render(
+      <AasElementGroupView
+        group={makeGroup({
+          groups: [makeGroup({ idShort: "Documents", files: [file] })],
+        })}
+        depth={0}
+        onPreview={onPreview}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(onPreview).toHaveBeenCalledWith(file, ["Documents"]);
   });
 });

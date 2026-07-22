@@ -1,8 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AasViewer } from "./AasViewer";
 import type { AasData, AasSubmodelData } from "@/lib/aas";
+
+vi.mock("@/components/FilePreviewDialog", () => ({
+  FilePreviewDialog: ({
+    file,
+    fileUrl,
+    onClose,
+  }: {
+    file: { idShort: string };
+    fileUrl: string;
+    onClose: () => void;
+  }) => (
+    <div data-testid="file-preview-dialog" data-file-url={fileUrl} data-file-idshort={file.idShort}>
+      <button type="button" onClick={onClose}>
+        Close preview
+      </button>
+    </div>
+  ),
+}));
+
+const { AasViewer } = await import("./AasViewer");
 
 function makeSubmodel(overrides: Partial<AasSubmodelData> = {}): AasSubmodelData {
   return {
@@ -25,7 +44,7 @@ function makeAasData(submodels: AasSubmodelData[]): AasData {
 
 describe("AasViewer", () => {
   it("shows a message when the AAS has no submodels", () => {
-    render(<AasViewer aasData={makeAasData([])} />);
+    render(<AasViewer aasData={makeAasData([])} assetId="asset-1" />);
 
     expect(screen.getByText("This AAS has no submodels.")).toBeInTheDocument();
   });
@@ -36,8 +55,7 @@ describe("AasViewer", () => {
         aasData={makeAasData([
           makeSubmodel({ id: "sm-1", idShort: "Nameplate" }),
           makeSubmodel({ id: "sm-2", idShort: "TechnicalData" }),
-        ])}
-      />
+        ])} assetId="asset-1" />
     );
 
     expect(
@@ -51,8 +69,7 @@ describe("AasViewer", () => {
         aasData={makeAasData([
           makeSubmodel({ id: "sm-1", idShort: "Nameplate" }),
           makeSubmodel({ id: "sm-2", idShort: "TechnicalData" }),
-        ])}
-      />
+        ])} assetId="asset-1" />
     );
 
     expect(screen.getAllByText("SM")).toHaveLength(2);
@@ -71,8 +88,7 @@ describe("AasViewer", () => {
         aasData={makeAasData([
           makeSubmodel({ id: "sm-1", idShort: "Nameplate" }),
           makeSubmodel({ id: "sm-2", idShort: "TechnicalData" }),
-        ])}
-      />
+        ])} assetId="asset-1" />
     );
 
     await user.click(screen.getByRole("button", { name: /TechnicalData/ }));
@@ -97,8 +113,7 @@ describe("AasViewer", () => {
             templateName: "Digital Nameplate for industrial equipment",
             displayName: "Custom Display Name",
           }),
-        ])}
-      />
+        ])} assetId="asset-1" />
     );
 
     expect(
@@ -114,8 +129,7 @@ describe("AasViewer", () => {
             idShort: "Nameplate",
             templateName: "Digital Nameplate for industrial equipment",
           }),
-        ])}
-      />
+        ])} assetId="asset-1" />
     );
 
     expect(
@@ -128,8 +142,7 @@ describe("AasViewer", () => {
   it("falls back to id when idShort is blank and there is no displayName/templateName", () => {
     render(
       <AasViewer
-        aasData={makeAasData([makeSubmodel({ id: "sm-raw-id", idShort: "" })])}
-      />
+        aasData={makeAasData([makeSubmodel({ id: "sm-raw-id", idShort: "" })])} assetId="asset-1" />
     );
 
     expect(
@@ -139,11 +152,11 @@ describe("AasViewer", () => {
 
   it("falls back to no selection when the previously selected submodel id no longer exists in fresh data", () => {
     const { rerender } = render(
-      <AasViewer aasData={makeAasData([makeSubmodel({ id: "sm-1" })])} />
+      <AasViewer aasData={makeAasData([makeSubmodel({ id: "sm-1" })])} assetId="asset-1" />
     );
 
     rerender(
-      <AasViewer aasData={makeAasData([makeSubmodel({ id: "sm-2" })])} />
+      <AasViewer aasData={makeAasData([makeSubmodel({ id: "sm-2" })])} assetId="asset-1" />
     );
 
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
@@ -152,15 +165,14 @@ describe("AasViewer", () => {
   it("shows the version badge when set", () => {
     render(
       <AasViewer
-        aasData={makeAasData([makeSubmodel({ version: "2.0" })])}
-      />
+        aasData={makeAasData([makeSubmodel({ version: "2.0" })])} assetId="asset-1" />
     );
 
     expect(screen.getByText("v2.0")).toBeInTheDocument();
   });
 
   it("shows no version badge when unset", () => {
-    render(<AasViewer aasData={makeAasData([makeSubmodel({ version: null })])} />);
+    render(<AasViewer aasData={makeAasData([makeSubmodel({ version: null })])} assetId="asset-1" />);
 
     expect(screen.queryByText(/^v/)).not.toBeInTheDocument();
   });
@@ -170,8 +182,7 @@ describe("AasViewer", () => {
       <AasViewer
         aasData={makeAasData([
           makeSubmodel({ description: "Contains the nameplate information" }),
-        ])}
-      />
+        ])} assetId="asset-1" />
     );
 
     expect(
@@ -191,7 +202,7 @@ describe("AasViewer", () => {
     }
 
     it("does not show the toggle for a submodel without a recognized visualization", () => {
-      render(<AasViewer aasData={makeAasData([makeSubmodel()])} />);
+      render(<AasViewer aasData={makeAasData([makeSubmodel()])} assetId="asset-1" />);
 
       expect(
         screen.queryByRole("button", { name: "Overview" })
@@ -199,7 +210,7 @@ describe("AasViewer", () => {
     });
 
     it("shows the toggle for a recognized Nameplate submodel, defaulting to Overview", () => {
-      render(<AasViewer aasData={makeAasData([makeNameplateSubmodel()])} />);
+      render(<AasViewer aasData={makeAasData([makeNameplateSubmodel()])} assetId="asset-1" />);
 
       expect(
         screen.getByRole("button", { name: "Overview" })
@@ -213,7 +224,7 @@ describe("AasViewer", () => {
 
     it("switches to the generic technical table when Technical is clicked", async () => {
       const user = userEvent.setup();
-      render(<AasViewer aasData={makeAasData([makeNameplateSubmodel()])} />);
+      render(<AasViewer aasData={makeAasData([makeNameplateSubmodel()])} assetId="asset-1" />);
 
       await user.click(screen.getByRole("button", { name: "Technical" }));
 
@@ -238,8 +249,7 @@ describe("AasViewer", () => {
           aasData={makeAasData([
             makeNameplateSubmodel({ id: "sm-1", displayName: "Nameplate 1" }),
             makeNameplateSubmodel({ id: "sm-2", displayName: "Nameplate 2" }),
-          ])}
-        />
+          ])} assetId="asset-1" />
       );
 
       await user.click(screen.getByRole("button", { name: "Technical" }));
@@ -248,6 +258,136 @@ describe("AasViewer", () => {
       expect(
         screen.getByRole("button", { name: "Overview" })
       ).toHaveAttribute("aria-pressed", "true");
+    });
+  });
+
+  describe("file preview", () => {
+    it("opens the preview dialog with a proxy URL built from the asset, submodel, and file", async () => {
+      const user = userEvent.setup();
+      render(
+        <AasViewer
+          aasData={makeAasData([
+            makeSubmodel({
+              id: "sm-1",
+              files: [
+                {
+                  idShort: "Drawing",
+                  value: "https://vendor.example/drawing.stp",
+                  contentType: "application/step",
+                },
+              ],
+            }),
+          ])}
+          assetId="asset-1"
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Preview" }));
+
+      const dialog = screen.getByTestId("file-preview-dialog");
+      expect(dialog).toHaveAttribute("data-file-idshort", "Drawing");
+      const fileUrl = new URL(dialog.getAttribute("data-file-url") ?? "", "http://localhost");
+      expect(fileUrl.pathname).toBe("/api/assets/asset-1/aas-files");
+      expect(fileUrl.searchParams.get("submodelId")).toBe("sm-1");
+      expect(fileUrl.searchParams.get("fileIdShort")).toBe("Drawing");
+      expect(fileUrl.searchParams.get("groupPath")).toBe("[]");
+    });
+
+    it("includes the nested group path in the proxy URL", async () => {
+      const user = userEvent.setup();
+      render(
+        <AasViewer
+          aasData={makeAasData([
+            makeSubmodel({
+              id: "sm-1",
+              groups: [
+                {
+                  idShort: "Documents",
+                  displayName: null,
+                  properties: [],
+                  files: [
+                    {
+                      idShort: "Manual",
+                      value: "https://vendor.example/manual.pdf",
+                      contentType: "application/pdf",
+                    },
+                  ],
+                  groups: [],
+                },
+              ],
+            }),
+          ])}
+          assetId="asset-1"
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Preview" }));
+
+      const fileUrl = new URL(
+        screen.getByTestId("file-preview-dialog").getAttribute("data-file-url") ?? "",
+        "http://localhost"
+      );
+      expect(fileUrl.searchParams.get("groupPath")).toBe('["Documents"]');
+    });
+
+    it("closes the preview dialog when its onClose is called", async () => {
+      const user = userEvent.setup();
+      render(
+        <AasViewer
+          aasData={makeAasData([
+            makeSubmodel({
+              files: [
+                {
+                  idShort: "Manual",
+                  value: "https://vendor.example/manual.pdf",
+                  contentType: "application/pdf",
+                },
+              ],
+            }),
+          ])}
+          assetId="asset-1"
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Preview" }));
+      expect(screen.getByTestId("file-preview-dialog")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Close preview" }));
+
+      expect(screen.queryByTestId("file-preview-dialog")).not.toBeInTheDocument();
+    });
+
+    it("does not render the preview dialog until a file is previewed", () => {
+      render(<AasViewer aasData={makeAasData([makeSubmodel()])} assetId="asset-1" />);
+
+      expect(screen.queryByTestId("file-preview-dialog")).not.toBeInTheDocument();
+    });
+
+    it("renders an inline image thumbnail with a proxy URL built from the asset, submodel, and file", () => {
+      render(
+        <AasViewer
+          aasData={makeAasData([
+            makeSubmodel({
+              id: "sm-1",
+              files: [
+                {
+                  idShort: "ProductImage",
+                  value: "https://vendor.example/product.jpg",
+                  contentType: "image/jpeg",
+                },
+              ],
+            }),
+          ])}
+          assetId="asset-1"
+        />
+      );
+
+      const image = screen.getByRole("img", { name: "ProductImage" });
+      const imageUrl = new URL(image.getAttribute("src") ?? "", "http://localhost");
+      expect(imageUrl.pathname).toBe("/api/assets/asset-1/aas-files");
+      expect(imageUrl.searchParams.get("submodelId")).toBe("sm-1");
+      expect(imageUrl.searchParams.get("fileIdShort")).toBe("ProductImage");
+      expect(imageUrl.searchParams.get("groupPath")).toBe("[]");
     });
   });
 });
