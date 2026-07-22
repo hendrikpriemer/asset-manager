@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { parseAssetInput, AssetValidationError } from "@/lib/asset-schema";
 import { parseAssetImage, AssetImageValidationError } from "@/lib/asset-images";
 import { reindexAssetAas, type ReindexResult } from "@/lib/aas-reindex";
+import { publishAssetAas, unpublishAssetAas } from "@/lib/aas-publish";
 
 export type ActionState = { error: string | null };
 
@@ -62,7 +63,7 @@ export async function createAsset(
     aasGlobalAssetId: input.aasGlobalAssetId,
   });
 
-  await prisma.asset.create({
+  const created = await prisma.asset.create({
     data: {
       ...input,
       assetImage: assetImage?.data ?? null,
@@ -72,6 +73,7 @@ export async function createAsset(
       ...aasIndexUpdateData(reindexResult),
     },
   });
+  await publishAssetAas(created);
   revalidatePath("/asset-structure/table");
   revalidatePath("/asset-structure", "layout");
   return { error: null };
@@ -139,7 +141,8 @@ export async function updateAsset(
   });
   Object.assign(data, aasIndexUpdateData(reindexResult));
 
-  await prisma.asset.update({ where: { id }, data });
+  const updated = await prisma.asset.update({ where: { id }, data });
+  await publishAssetAas(updated);
   revalidatePath("/asset-structure/table");
   revalidatePath("/asset-structure", "layout");
   return { error: null };
@@ -147,6 +150,7 @@ export async function updateAsset(
 
 export async function deleteAsset(id: string): Promise<void> {
   await prisma.asset.delete({ where: { id } });
+  await unpublishAssetAas(id);
   revalidatePath("/asset-structure/table");
   revalidatePath("/asset-structure", "layout");
 }

@@ -12,10 +12,15 @@ const { prisma } = vi.hoisted(() => ({
   },
 }));
 const { reindexAssetAas } = vi.hoisted(() => ({ reindexAssetAas: vi.fn() }));
+const { publishAssetAas, unpublishAssetAas } = vi.hoisted(() => ({
+  publishAssetAas: vi.fn(),
+  unpublishAssetAas: vi.fn(),
+}));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/prisma", () => ({ prisma }));
 vi.mock("@/lib/aas-reindex", () => ({ reindexAssetAas }));
+vi.mock("@/lib/aas-publish", () => ({ publishAssetAas, unpublishAssetAas }));
 
 const { createAsset, updateAsset, deleteAsset, refreshAasSearchIndex } =
   await import("./actions");
@@ -28,9 +33,15 @@ function formDataWith(fields: Record<string, string>): FormData {
   return formData;
 }
 
+const createdAsset = { id: "asset-1", name: "Laptop" };
+
 beforeEach(() => {
   vi.clearAllMocks();
   reindexAssetAas.mockResolvedValue({ status: "no-reference" });
+  prisma.asset.create.mockResolvedValue(createdAsset);
+  prisma.asset.update.mockResolvedValue(createdAsset);
+  publishAssetAas.mockResolvedValue("published");
+  unpublishAssetAas.mockResolvedValue(undefined);
 });
 
 describe("createAsset", () => {
@@ -57,6 +68,23 @@ describe("createAsset", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure/table");
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
+  });
+
+  it("publishes the created asset as its own AAS in the local mirror", async () => {
+    const formData = formDataWith({ name: "Laptop", description: "Work" });
+
+    await createAsset({ error: null }, formData);
+
+    expect(publishAssetAas).toHaveBeenCalledWith(createdAsset);
+  });
+
+  it("still succeeds when publishing the asset's own AAS fails", async () => {
+    publishAssetAas.mockResolvedValue("publish-failed");
+    const formData = formDataWith({ name: "Laptop", description: "Work" });
+
+    const result = await createAsset({ error: null }, formData);
+
+    expect(result).toEqual({ error: null });
   });
 
   it("creates the asset with uploaded photos", async () => {
@@ -189,6 +217,23 @@ describe("updateAsset", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure/table");
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
+  });
+
+  it("publishes the updated asset as its own AAS in the local mirror", async () => {
+    const formData = formDataWith({ name: "Laptop", description: "Work" });
+
+    await updateAsset("asset-1", { error: null }, formData);
+
+    expect(publishAssetAas).toHaveBeenCalledWith(createdAsset);
+  });
+
+  it("still succeeds when publishing the asset's own AAS fails", async () => {
+    publishAssetAas.mockResolvedValue("publish-failed");
+    const formData = formDataWith({ name: "Laptop", description: "Work" });
+
+    const result = await updateAsset("asset-1", { error: null }, formData);
+
+    expect(result).toEqual({ error: null });
   });
 
   it("returns an error and does not persist on invalid input", async () => {
@@ -373,6 +418,12 @@ describe("deleteAsset", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure/table");
     expect(revalidatePath).toHaveBeenCalledWith("/asset-structure", "layout");
+  });
+
+  it("unpublishes the asset's own AAS from the local mirror", async () => {
+    await deleteAsset("asset-1");
+
+    expect(unpublishAssetAas).toHaveBeenCalledWith("asset-1");
   });
 });
 
