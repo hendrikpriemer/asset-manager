@@ -7,13 +7,22 @@
  * them has a matching shell.
  *
  * Submodel elements are collected into a tree of `AasElementGroup`s mirroring
- * the AAS's own `SubmodelElementCollection` nesting, so the display side can
- * render grouped sections the way the official Eclipse BaSyx AAS Web UI
- * does. This intentionally supports only `Property`, `MultiLanguageProperty`
- * (folded into the same `properties` list - both are just a name/value pair
- * once resolved to a display string), and `File` elements - not yet
- * `SubmodelElementList`, `ReferenceElement`, or other types. Those can be
- * added once the display side needs them.
+ * the AAS's own `SubmodelElementCollection`/`SubmodelElementList`/`Entity`
+ * nesting, so the display side can render grouped sections the way the
+ * official Eclipse BaSyx AAS Web UI does. Supports `Property` and
+ * `MultiLanguageProperty` (folded into the same `properties` list - both are
+ * just a name/value pair once resolved to a display string), `File`,
+ * `ReferenceElement` (folded into `properties` too, as a " / "-joined path
+ * of its reference keys), `SubmodelElementCollection`/`SubmodelElementList`
+ * (both just a named group of child elements - a list's items commonly omit
+ * their own `idShort`, confirmed against a real WAGO CarbonFootprint
+ * submodel), and `Entity` (a group whose `statements` are its children,
+ * with `entityType`/`globalAssetId` surfaced as leading properties - this is
+ * what the already-recognized "Hierarchical Structures" submodel template
+ * actually uses, confirmed against the official IDTA template/example
+ * files, not WAGO's data which doesn't include that submodel). Still not
+ * handled: `Range`, `Blob`, `Operation`, `RelationshipElement`, and other
+ * rarer types - can be added once the display side needs them.
  *
  * `getRawAasData` exposes the same fetch untransformed, for callers (like
  * `lib/aas-mirror.ts`) that need a lossless copy of the source JSON rather
@@ -326,6 +335,33 @@ function multiLanguagePropertyValue(element: Record<string, unknown>): string | 
   return preferredLangText(asArray(element.value));
 }
 
+/** A Reference's target, as a " / "-joined path of its keys' values (e.g. "Documents / 0"). */
+function referenceToPathString(value: unknown): string | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const keys = asArray((value as { keys?: unknown }).keys)
+    .map((key) =>
+      key && typeof key === "object" ? asString((key as { value?: unknown }).value) : null
+    )
+    .filter((keyValue): keyValue is string => keyValue !== null);
+  return keys.length > 0 ? keys.join(" / ") : null;
+}
+
+/** Surfaces an Entity's own scalar fields as leading properties of its group. */
+function entityScalarProperties(element: Record<string, unknown>): AasSubmodelProperty[] {
+  const properties: AasSubmodelProperty[] = [];
+  const entityType = asString(element.entityType);
+  if (entityType) {
+    properties.push({ idShort: "entityType", value: entityType });
+  }
+  const globalAssetId = asString(element.globalAssetId);
+  if (globalAssetId) {
+    properties.push({ idShort: "globalAssetId", value: globalAssetId });
+  }
+  return properties;
+}
+
 function buildElementGroup(
   idShort: string,
   displayName: string | null,
@@ -355,13 +391,18 @@ function buildElementGroup(
         idShort: elIdShort,
         value: multiLanguagePropertyValue(el),
       });
+    } else if (modelType === "ReferenceElement") {
+      properties.push({
+        idShort: elIdShort,
+        value: referenceToPathString(el.value),
+      });
     } else if (modelType === "File") {
       files.push({
         idShort: elIdShort,
         value: asString(el.value),
         contentType: asString(el.contentType),
       });
-    } else if (modelType === "SubmodelElementCollection") {
+    } else if (modelType === "SubmodelElementCollection" || modelType === "SubmodelElementList") {
       groups.push(
         buildElementGroup(
           elIdShort,
@@ -370,6 +411,17 @@ function buildElementGroup(
           depth + 1
         )
       );
+    } else if (modelType === "Entity") {
+      const nested = buildElementGroup(
+        elIdShort,
+        displayNameOf(el),
+        asArray(el.statements),
+        depth + 1
+      );
+      groups.push({
+        ...nested,
+        properties: [...entityScalarProperties(el), ...nested.properties],
+      });
     }
   }
 

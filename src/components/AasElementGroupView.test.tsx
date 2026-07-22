@@ -35,6 +35,18 @@ describe("AasElementGroupView", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
+  it("falls back to 'Property' for a property with a blank idShort (e.g. an unlabeled SubmodelElementList item)", () => {
+    render(
+      <AasElementGroupView
+        group={makeGroup({ properties: [{ idShort: "", value: "ISO 14040:40" }] })}
+        depth={0}
+      />
+    );
+
+    expect(screen.getByText("Property")).toBeInTheDocument();
+    expect(screen.getByText("ISO 14040:40")).toBeInTheDocument();
+  });
+
   it("renders a File with a value as a clickable link labeled with its contentType", () => {
     render(
       <AasElementGroupView

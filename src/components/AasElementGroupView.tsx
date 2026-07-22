@@ -35,7 +35,7 @@ export function AasElementGroupView({
                 style={indent}
                 className="py-2 pr-4 md-body-small text-on-surface-variant"
               >
-                {property.idShort}
+                {property.idShort || "Property"}
               </dt>
               <dd className="py-2 pr-2 md-body-small text-on-surface">
                 {property.value ?? "—"}
@@ -92,8 +92,8 @@ export function AasElementGroupView({
           ))}
         </dl>
       )}
-      {group.groups.map((child) => (
-        <div key={child.idShort}>
+      {group.groups.map((child, index) => (
+        <div key={`${child.idShort}-${index}`}>
           <div
             style={indent}
             className="flex items-center gap-2 border-t border-outline-variant bg-surface-container-low py-2"

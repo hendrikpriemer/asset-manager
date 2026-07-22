@@ -776,6 +776,281 @@ describe("getAasData", () => {
     ]);
   });
 
+  it("treats a SubmodelElementList like a SubmodelElementCollection, grouping its children", async () => {
+    // Mirrors a real WAGO CarbonFootprint submodel: list items commonly omit
+    // their own idShort (identified by position, not by name).
+    const pcfSubmodel = {
+      id: "https://example.com/sm/pcf",
+      submodelElements: [
+        {
+          modelType: "SubmodelElementList",
+          idShort: "ProductCarbonFootprints",
+          value: [
+            {
+              modelType: "Property",
+              value: "ISO 14040:40",
+            },
+          ],
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: pcfSubmodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(pcfSubmodel.id)}`) {
+        return jsonResponse(pcfSubmodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].groups).toEqual([
+      {
+        idShort: "ProductCarbonFootprints",
+        displayName: null,
+        properties: [{ idShort: "", value: "ISO 14040:40" }],
+        files: [],
+        groups: [],
+      },
+    ]);
+  });
+
+  it("extracts a ReferenceElement as a property with a '/'-joined path of its reference keys", async () => {
+    const handoverSubmodel = {
+      id: "https://example.com/sm/handover",
+      submodelElements: [
+        {
+          modelType: "ReferenceElement",
+          idShort: "TranslationOf",
+          value: {
+            type: "ModelReference",
+            keys: [
+              { type: "Submodel", value: "https://example.com/sm/handover" },
+              { type: "SubmodelElementList", value: "Documents" },
+              { type: "SubmodelElementCollection", value: "0" },
+            ],
+          },
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: handoverSubmodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(handoverSubmodel.id)}`) {
+        return jsonResponse(handoverSubmodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].properties).toEqual([
+      {
+        idShort: "TranslationOf",
+        value: "https://example.com/sm/handover / Documents / 0",
+      },
+    ]);
+  });
+
+  it("defaults a ReferenceElement's value to null when it has no reference value or no keys", async () => {
+    const submodel = {
+      id: "https://example.com/sm/refs",
+      submodelElements: [
+        { modelType: "ReferenceElement", idShort: "NoValue" },
+        { modelType: "ReferenceElement", idShort: "EmptyKeys", value: { type: "ModelReference", keys: [] } },
+        { modelType: "ReferenceElement", idShort: "NotAnObject", value: "not-a-reference" },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: submodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(submodel.id)}`) {
+        return jsonResponse(submodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].properties).toEqual([
+      { idShort: "NoValue", value: null },
+      { idShort: "EmptyKeys", value: null },
+      { idShort: "NotAnObject", value: null },
+    ]);
+  });
+
+  it("ignores a malformed (non-object) key when building a ReferenceElement's path", async () => {
+    const submodel = {
+      id: "https://example.com/sm/refs-malformed",
+      submodelElements: [
+        {
+          modelType: "ReferenceElement",
+          idShort: "PartlyBroken",
+          value: {
+            type: "ModelReference",
+            keys: ["not-an-object", { type: "Submodel", value: "https://example.com/sm/refs-malformed" }],
+          },
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: submodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(submodel.id)}`) {
+        return jsonResponse(submodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].properties).toEqual([
+      { idShort: "PartlyBroken", value: "https://example.com/sm/refs-malformed" },
+    ]);
+  });
+
+  it("extracts an Entity as a group whose statements are its children, with entityType/globalAssetId as leading properties", async () => {
+    const hsSubmodel = {
+      id: "https://example.com/sm/hs",
+      submodelElements: [
+        {
+          modelType: "Entity",
+          idShort: "EntryNode",
+          entityType: "SelfManagedEntity",
+          globalAssetId: "https://example.com/assets/lathe-1",
+          statements: [{ modelType: "Property", idShort: "SerialNumber", value: "SN-1" }],
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: hsSubmodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(hsSubmodel.id)}`) {
+        return jsonResponse(hsSubmodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].groups).toEqual([
+      {
+        idShort: "EntryNode",
+        displayName: null,
+        properties: [
+          { idShort: "entityType", value: "SelfManagedEntity" },
+          { idShort: "globalAssetId", value: "https://example.com/assets/lathe-1" },
+          { idShort: "SerialNumber", value: "SN-1" },
+        ],
+        files: [],
+        groups: [],
+      },
+    ]);
+  });
+
+  it("omits entityType/globalAssetId from an Entity's properties when absent (e.g. a CoManagedEntity)", async () => {
+    const hsSubmodel = {
+      id: "https://example.com/sm/hs-comanaged",
+      submodelElements: [
+        {
+          modelType: "Entity",
+          idShort: "Node",
+          entityType: "CoManagedEntity",
+          statements: [],
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: hsSubmodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(hsSubmodel.id)}`) {
+        return jsonResponse(hsSubmodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].groups).toEqual([
+      {
+        idShort: "Node",
+        displayName: null,
+        properties: [{ idShort: "entityType", value: "CoManagedEntity" }],
+        files: [],
+        groups: [],
+      },
+    ]);
+  });
+
+  it("adds no synthetic properties for an Entity with neither entityType nor globalAssetId", async () => {
+    const hsSubmodel = {
+      id: "https://example.com/sm/hs-bare",
+      submodelElements: [
+        {
+          modelType: "Entity",
+          idShort: "BareEntity",
+          statements: [{ modelType: "Property", idShort: "Leaf", value: "leaf-value" }],
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") return jsonResponse(shell);
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({
+          result: [{ keys: [{ type: "Submodel", value: hsSubmodel.id }] }],
+        });
+      }
+      if (url === `http://vendor.example/submodels/${encode(hsSubmodel.id)}`) {
+        return jsonResponse(hsSubmodel);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasEndpointUrl: "http://vendor.example/shells/abc" });
+
+    expect(result?.submodels[0].groups).toEqual([
+      {
+        idShort: "BareEntity",
+        displayName: null,
+        properties: [{ idShort: "Leaf", value: "leaf-value" }],
+        files: [],
+        groups: [],
+      },
+    ]);
+  });
+
   it("treats a SubmodelElementCollection with a non-array value as an empty group", async () => {
     const brokenSubmodel = {
       id: "https://example.com/sm/broken",
