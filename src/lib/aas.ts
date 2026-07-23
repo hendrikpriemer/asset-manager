@@ -114,6 +114,13 @@ const KNOWN_SUBMODEL_TEMPLATES: {
 export type AasReference = {
   aasEndpointUrl?: string | null;
   aasGlobalAssetId?: string | null;
+  // Use only when the value is *known* to be a shell's own `id` rather than
+  // its `assetInformation.globalAssetId` (e.g. a manufacturer's confirmed
+  // shell-id URL convention - see `lib/nameplate-identification.ts`). Skips
+  // the (slow, often 15s+) `assetIds` filter search entirely instead of
+  // racing it pointlessly alongside the direct id lookup, since we already
+  // know it can't be a genuine assetIds match.
+  aasShellId?: string | null;
 };
 
 export type AasSubmodelProperty = {
@@ -244,6 +251,20 @@ async function resolveShellByGlobalAssetId(
   }
 }
 
+async function resolveShellById(
+  shellId: string
+): Promise<{ shell: Record<string, unknown>; baseUrl: string } | null> {
+  const repositories = await prisma.aasRepository.findMany();
+  const encodedId = encodeAasId(shellId);
+  const attempts = repositories.map((repository) => tryShellIdMatch(repository, encodedId));
+
+  try {
+    return await Promise.any(attempts);
+  } catch {
+    return null;
+  }
+}
+
 async function resolveShell(
   reference: AasReference
 ): Promise<{ shell: Record<string, unknown>; baseUrl: string } | null> {
@@ -253,6 +274,10 @@ async function resolveShell(
       return null;
     }
     return { shell, baseUrl: deriveBaseUrl(reference.aasEndpointUrl) };
+  }
+
+  if (reference.aasShellId) {
+    return resolveShellById(reference.aasShellId);
   }
 
   if (reference.aasGlobalAssetId) {

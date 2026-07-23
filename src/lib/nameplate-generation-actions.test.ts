@@ -30,11 +30,13 @@ const { mirrorAasDataToLocalRepo } = vi.hoisted(() => ({
   mirrorAasDataToLocalRepo: vi.fn(),
 }));
 const {
+  assetShellId,
   buildAssetMetadataSubmodel,
   buildAssetNameplateSubmodel,
   buildAssetShell,
   publishAssetAas,
 } = vi.hoisted(() => ({
+  assetShellId: vi.fn((assetId: string) => `https://asset-manager.internal/aas/${assetId}`),
   buildAssetMetadataSubmodel: vi.fn(() => ({ id: "metadata-submodel" })),
   buildAssetNameplateSubmodel: vi.fn(() => ({ id: "nameplate-submodel" })),
   buildAssetShell: vi.fn(() => ({ id: "shell" })),
@@ -54,6 +56,7 @@ vi.mock("@/lib/vision-providers/extract-nameplate-fields", () => ({
 vi.mock("@/lib/aas-reindex", () => ({ reindexAssetAas }));
 vi.mock("@/lib/aas-mirror", () => ({ mirrorAasDataToLocalRepo }));
 vi.mock("@/lib/aas-publish", () => ({
+  assetShellId,
   buildAssetMetadataSubmodel,
   buildAssetNameplateSubmodel,
   buildAssetShell,
@@ -366,17 +369,22 @@ describe("publishManualNameplate", () => {
     expect(prisma.asset.update).not.toHaveBeenCalled();
   });
 
-  it("marks the nameplate as generated and mirrors the shell + both submodels", async () => {
+  it("marks the nameplate as generated, links the asset to its own self-published shell, and mirrors both submodels", async () => {
     prisma.asset.findUnique.mockResolvedValue({ id: "asset-1" });
     const updated = { id: "asset-1", nameplateSubmodelGeneratedAt: new Date() };
     prisma.asset.update.mockResolvedValue(updated);
     mirrorAasDataToLocalRepo.mockResolvedValue("mirrored");
+    reindexAssetAas.mockResolvedValue({ status: "ok", text: "searchable text", mirror: "mirrored" });
 
     const result = await publishManualNameplate("asset-1", fields);
 
-    expect(prisma.asset.update).toHaveBeenCalledWith({
+    expect(prisma.asset.update).toHaveBeenNthCalledWith(1, {
       where: { id: "asset-1" },
-      data: { nameplateSubmodelGeneratedAt: expect.any(Date) },
+      data: {
+        nameplateSubmodelGeneratedAt: expect.any(Date),
+        aasGlobalAssetId: "https://asset-manager.internal/aas/asset-1",
+        aasEndpointUrl: null,
+      },
     });
     expect(buildAssetShell).toHaveBeenCalledWith(updated);
     expect(buildAssetMetadataSubmodel).toHaveBeenCalledWith(updated);
@@ -388,7 +396,34 @@ describe("publishManualNameplate", () => {
     expect(result).toEqual({ error: null });
   });
 
-  it("returns an error message when mirroring fails", async () => {
+  it("reindexes the search cache after successfully mirroring", async () => {
+    prisma.asset.findUnique.mockResolvedValue({ id: "asset-1" });
+    const updated = { id: "asset-1" };
+    prisma.asset.update.mockResolvedValue(updated);
+    mirrorAasDataToLocalRepo.mockResolvedValue("mirrored");
+    reindexAssetAas.mockResolvedValue({ status: "ok", text: "searchable text", mirror: "mirrored" });
+
+    await publishManualNameplate("asset-1", fields);
+
+    expect(reindexAssetAas).toHaveBeenCalledWith(updated);
+    expect(prisma.asset.update).toHaveBeenNthCalledWith(2, {
+      where: { id: "asset-1" },
+      data: { aasSearchText: "searchable text", aasSearchIndexedAt: expect.any(Date) },
+    });
+  });
+
+  it("skips reindexing when the reindex itself doesn't report success", async () => {
+    prisma.asset.findUnique.mockResolvedValue({ id: "asset-1" });
+    prisma.asset.update.mockResolvedValue({ id: "asset-1" });
+    mirrorAasDataToLocalRepo.mockResolvedValue("mirrored");
+    reindexAssetAas.mockResolvedValue({ status: "failed" });
+
+    await publishManualNameplate("asset-1", fields);
+
+    expect(prisma.asset.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns an error message and skips reindexing when mirroring fails", async () => {
     prisma.asset.findUnique.mockResolvedValue({ id: "asset-1" });
     prisma.asset.update.mockResolvedValue({ id: "asset-1" });
     mirrorAasDataToLocalRepo.mockResolvedValue("mirror-failed");
@@ -398,5 +433,6 @@ describe("publishManualNameplate", () => {
     expect(result.error).toBe(
       "Could not publish the Nameplate submodel to the local AAS mirror."
     );
+    expect(reindexAssetAas).not.toHaveBeenCalled();
   });
 });

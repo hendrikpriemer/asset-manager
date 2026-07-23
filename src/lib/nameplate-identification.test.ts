@@ -22,22 +22,44 @@ describe("identifyAssetFromNameplate", () => {
     expect(prisma.aasRepository.findMany).not.toHaveBeenCalled();
   });
 
-  it("builds a WAGO candidate globalAssetId and returns the match when it resolves", async () => {
+  it("builds both a WAGO assetIds-style and shell-id-style candidate, and returns the match when the slow assetIds one resolves", async () => {
     prisma.aasRepository.findMany.mockResolvedValue([
       { name: "WAGO", isLocalMirror: false },
     ]);
     const aasData = { id: "https://wago.com/ids/aas/750-451", idShort: "750-451", submodels: [] };
-    getAasData.mockResolvedValue(aasData);
+    getAasData.mockImplementation(async (reference: { aasGlobalAssetId?: string }) =>
+      reference.aasGlobalAssetId === "https://wago.com/ids/assets/750-451" ? aasData : null
+    );
 
     const result = await identifyAssetFromNameplate("750-451");
 
     expect(getAasData).toHaveBeenCalledWith({
       aasGlobalAssetId: "https://wago.com/ids/assets/750-451",
     });
+    expect(getAasData).toHaveBeenCalledWith({
+      aasShellId: "https://wago.com/ids/aas/750-451",
+    });
     expect(result).toEqual({
       globalAssetId: "https://wago.com/ids/assets/750-451",
       aasData,
     });
+  });
+
+  it("also resolves via the fast shell-id-style candidate alone, without the slow assetIds one ever resolving", async () => {
+    // Confirmed live: WAGO's assetIds filter search takes ~15-23s while its
+    // direct shell-id lookup takes ~0.2-0.9s for the same shell - this is
+    // the fast path actually winning, not just being attempted. Routing it
+    // through `aasShellId` (not `aasGlobalAssetId`) is what skips the slow
+    // assetIds search entirely instead of just racing past it.
+    prisma.aasRepository.findMany.mockResolvedValue([{ name: "WAGO", isLocalMirror: false }]);
+    const aasData = { id: "https://wago.com/ids/aas/750-451", idShort: "750-451", submodels: [] };
+    getAasData.mockImplementation(async (reference: { aasShellId?: string }) =>
+      reference.aasShellId === "https://wago.com/ids/aas/750-451" ? aasData : null
+    );
+
+    const result = await identifyAssetFromNameplate("750-451");
+
+    expect(result).toEqual({ globalAssetId: "https://wago.com/ids/aas/750-451", aasData });
   });
 
   it("matches a WAGO repository name case-insensitively", async () => {
@@ -48,6 +70,9 @@ describe("identifyAssetFromNameplate", () => {
 
     expect(getAasData).toHaveBeenCalledWith({
       aasGlobalAssetId: "https://wago.com/ids/assets/750-451",
+    });
+    expect(getAasData).toHaveBeenCalledWith({
+      aasShellId: "https://wago.com/ids/aas/750-451",
     });
   });
 
@@ -84,10 +109,10 @@ describe("identifyAssetFromNameplate", () => {
   });
 
   it("tries the next candidate when an earlier one does not resolve", async () => {
-    prisma.aasRepository.findMany.mockResolvedValue([
-      { name: "WAGO", isLocalMirror: false },
-      { name: "WAGO Backup Mirror", isLocalMirror: false },
-    ]);
+    // A single "WAGO" repository already yields two candidates (the
+    // assets/-style and aas/-style patterns), so this alone exercises
+    // "keep trying candidates after a miss" without extra repositories.
+    prisma.aasRepository.findMany.mockResolvedValue([{ name: "WAGO", isLocalMirror: false }]);
     const aasData = { id: "x", idShort: "x", submodels: [] };
     getAasData.mockResolvedValueOnce(null).mockResolvedValueOnce(aasData);
 
@@ -139,6 +164,8 @@ describe("identifyAssetFromNameplate", () => {
 
     await identifyAssetFromNameplate("750-451");
 
-    expect(getAasData).toHaveBeenCalledTimes(1);
+    // One call per matching pattern (assets/-style and aas/-style), not per
+    // variant - there is only one variant here since nothing is ambiguous.
+    expect(getAasData).toHaveBeenCalledTimes(2);
   });
 });

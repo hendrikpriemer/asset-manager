@@ -367,6 +367,125 @@ describe("getAasData", () => {
     );
   });
 
+  it("looks up a shell by aasShellId directly, without ever trying the assetIds search", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "WAGO", baseUrl: REPO_BASE },
+    ]);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === `${REPO_BASE}/shells/${encode(shell.id)}`) {
+        return jsonResponse(shell);
+      }
+      if (url === `${REPO_BASE}/shells/${encode(shell.id)}/submodel-refs`) {
+        return jsonResponse({ result: [] });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasShellId: shell.id });
+
+    expect(result?.id).toBe(shell.id);
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("assetIds"),
+      expect.anything()
+    );
+  });
+
+  it("tries the aasShellId lookup across every configured repository until one matches", async () => {
+    const otherRepoBase = "https://c1.api.wago.com/smartdata-aas-env";
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "Local BaSyx", baseUrl: REPO_BASE },
+      { id: "repo-2", name: "WAGO", baseUrl: otherRepoBase },
+    ]);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === `${REPO_BASE}/shells/${encode(shell.id)}`) {
+        return jsonResponse(null, false);
+      }
+      if (url === `${otherRepoBase}/shells/${encode(shell.id)}`) {
+        return jsonResponse(shell);
+      }
+      if (url === `${otherRepoBase}/shells/${encode(shell.id)}/submodel-refs`) {
+        return jsonResponse({ result: [] });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasShellId: shell.id });
+
+    expect(result?.id).toBe(shell.id);
+  });
+
+  it("returns null for an aasShellId lookup when no repository is configured", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAasData({ aasShellId: shell.id });
+
+    expect(result).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the aasShellId lookup finds no shell in any configured repository", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "Local BaSyx", baseUrl: REPO_BASE },
+    ]);
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(null, false)));
+
+    const result = await awaitAfterRetryDelay(getAasData({ aasShellId: shell.id }));
+
+    expect(result).toBeNull();
+  });
+
+  it("prefers aasShellId over aasGlobalAssetId when both are set", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { id: "repo-1", name: "WAGO", baseUrl: REPO_BASE },
+    ]);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === `${REPO_BASE}/shells/${encode(shell.id)}`) {
+        return jsonResponse(shell);
+      }
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({ result: [] });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getAasData({
+      aasShellId: shell.id,
+      aasGlobalAssetId: "https://example.com/assets/lathe-1",
+    });
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("assetIds"),
+      expect.anything()
+    );
+  });
+
+  it("prefers aasEndpointUrl over aasShellId when both are set", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://vendor.example/shells/abc") {
+        return jsonResponse(shell);
+      }
+      if (url.includes("/submodel-refs")) {
+        return jsonResponse({ result: [] });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getAasData({
+      aasEndpointUrl: "http://vendor.example/shells/abc",
+      aasShellId: shell.id,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining(REPO_BASE),
+      expect.anything()
+    );
+  });
+
   it("returns null when the resolved shell has no id", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ idShort: "NoId" })));
 

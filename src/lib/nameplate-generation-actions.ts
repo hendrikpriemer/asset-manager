@@ -12,6 +12,7 @@ import type { AasData } from "@/lib/aas";
 import { reindexAssetAas } from "@/lib/aas-reindex";
 import { mirrorAasDataToLocalRepo } from "@/lib/aas-mirror";
 import {
+  assetShellId,
   buildAssetMetadataSubmodel,
   buildAssetNameplateSubmodel,
   buildAssetShell,
@@ -151,9 +152,19 @@ export async function publishManualNameplate(
     return { error: "Asset not found." };
   }
 
+  // No real manufacturer AAS was found for this asset (the whole reason
+  // we're generating our own local Nameplate submodel) - so link the asset
+  // to its own self-published shell the same way a real manufacturer link
+  // works (`aasGlobalAssetId`, endpoint URL cleared), which is what makes
+  // `AasViewer` pick it up and actually display it. Without this, the
+  // shell+submodel we're about to write would be published but invisible.
   const updated = await prisma.asset.update({
     where: { id: assetId },
-    data: { nameplateSubmodelGeneratedAt: new Date() },
+    data: {
+      nameplateSubmodelGeneratedAt: new Date(),
+      aasGlobalAssetId: assetShellId(assetId),
+      aasEndpointUrl: null,
+    },
   });
 
   const status = await mirrorAasDataToLocalRepo({
@@ -163,6 +174,16 @@ export async function publishManualNameplate(
       buildAssetNameplateSubmodel(assetId, fields),
     ],
   });
+
+  if (status === "mirrored") {
+    const reindexResult = await reindexAssetAas(updated);
+    if (reindexResult.status === "ok") {
+      await prisma.asset.update({
+        where: { id: assetId },
+        data: { aasSearchText: reindexResult.text, aasSearchIndexedAt: new Date() },
+      });
+    }
+  }
 
   revalidatePath("/asset-structure/table");
   revalidatePath("/asset-structure", "layout");
