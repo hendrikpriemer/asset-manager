@@ -21,6 +21,11 @@ services:
       - .env
     ports:
       - "3000:3000"
+    # HTTPS (mkcert-issued cert covering localhost + the dev LAN IP) so
+    # getUserMedia (camera capture) works when testing from a phone/tablet -
+    # browsers only allow camera/mic access in a secure context, which a
+    # plain http://LAN-IP origin never qualifies as. See certificates/README.
+    command: npx next dev --experimental-https --experimental-https-key ./certificates/localhost-key.pem --experimental-https-cert ./certificates/localhost.pem
     volumes:
       - .:/app
       - /app/node_modules

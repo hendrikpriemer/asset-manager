@@ -11,7 +11,11 @@ const nextConfig: NextConfig = {
   // while hydration/JS is broken - inputs still accept typed text natively,
   // but React state, event handlers, and anything driven by them stop
   // working, exactly matching "menu won't collapse / buttons don't respond".
-  allowedDevOrigins: ["192.168.178.32"],
+  // The Fritz!Box-assigned hostname survives DHCP lease renewals (unlike
+  // the raw LAN IP, which already changed once during testing) - prefer
+  // https://MacBookAir.fritz.box:3000 from other devices on the LAN. The
+  // IP is kept too as a fallback; the dev cert in certificates/ covers both.
+  allowedDevOrigins: ["192.168.178.25", "MacBookAir.fritz.box"],
   // Default position (bottom-left) sits directly over the Sidebar's footer
   // nav items (Settings/Info, also docked bottom-left) - on a narrow mobile
   // viewport the indicator can end up overlapping and intercepting taps
