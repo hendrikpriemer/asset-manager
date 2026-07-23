@@ -53,7 +53,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2">
+      {/*
+        pointer-events-none on this full-width wrapper (only re-enabled on
+        each actual Toast pill) so the empty space beside/above a toast -
+        which otherwise spans the whole viewport width at a fixed position -
+        doesn't swallow taps meant for whatever's underneath it, especially
+        noticeable on narrow mobile viewports where this strip covers a much
+        larger share of the screen.
+      */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2">
         {toasts.map((toast) => (
           <Toast
             key={toast.id}
