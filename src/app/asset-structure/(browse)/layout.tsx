@@ -21,7 +21,11 @@ export default async function AssetStructureBrowseLayout({
   const unassignedAssets = await getUnassignedAssets();
 
   return (
-    <main className="flex h-screen w-full flex-col gap-6 overflow-hidden p-8">
+    // h-full (not h-screen): the root layout now pins the app shell itself to
+    // the viewport height, so this only needs to fill its actual parent -
+    // using h-screen here would size against the raw viewport a second time,
+    // ignoring that parent's own bounds.
+    <main className="flex h-full w-full flex-col gap-6 overflow-hidden p-8">
       <h1 className="md-headline-medium text-on-background">Asset Manager</h1>
       <StructureViewTabs />
       <StructureBrowserSection

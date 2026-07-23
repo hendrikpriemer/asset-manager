@@ -91,7 +91,7 @@ export function Sidebar() {
 
   return (
     <nav
-      className={`flex flex-col gap-1 border-r border-outline-variant bg-surface-container-low p-2 transition-[width] duration-200 ${containerWidth}`}
+      className={`flex shrink-0 flex-col gap-1 overflow-y-auto border-r border-outline-variant bg-surface-container-low p-2 transition-[width] duration-200 ${containerWidth}`}
     >
       <Button
         variant="icon"

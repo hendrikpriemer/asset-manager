@@ -39,11 +39,20 @@ export default function RootLayout({
         No transform/filter/contain classes here or on Sidebar/content wrapper:
         that would create a new containing block and break Modal's
         `fixed inset-0` viewport-relative positioning.
+
+        h-dvh + overflow-hidden pins the app shell to the (dynamic, mobile-
+        toolbar-aware) viewport height instead of letting <body> grow with
+        page content - without this, a page taller than the viewport made
+        the *whole page* scroll, dragging the Sidebar out of view along with
+        it. Each page's own content now scrolls independently inside the
+        flex-1 wrapper (overflow-auto, both axes - horizontal for anything
+        wider than the content area, e.g. a wide table), while Sidebar stays
+        put for the full height, on every page, without any per-page opt-in.
       */}
-      <body className="min-h-full flex">
+      <body className="flex h-dvh overflow-hidden">
         <ToastProvider>
           <Sidebar />
-          <div className="flex flex-1 flex-col">{children}</div>
+          <div className="flex flex-1 flex-col overflow-auto">{children}</div>
         </ToastProvider>
       </body>
     </html>
