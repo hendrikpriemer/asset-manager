@@ -10,7 +10,6 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import {
-  deleteVisionProviderSetting,
   saveVisionProviderSetting,
   testVisionProviderConnection,
 } from "@/lib/vision-provider-actions";
@@ -27,21 +26,31 @@ const PROVIDER_LABELS: Record<VisionProviderType, string> = {
   MISTRAL: "Mistral",
 };
 
-export function VisionProviderWizard({
-  existingSetting,
-}: {
-  existingSetting: { provider: VisionProviderType; model: string } | null;
-}) {
-  const isConfigured = existingSetting !== null;
+// Fixed-length, not derived from the real key's length (which never reaches
+// the client) - purely a visual "a key is stored" cue, masked like any other
+// password field. Focusing the field clears it so the user starts a genuine
+// new value instead of editing this placeholder.
+const STORED_KEY_PLACEHOLDER = "•".repeat(16);
+
+type VisionProviderWizardProps =
+  | { mode: "create" }
+  | {
+      mode: "edit";
+      initialProvider: VisionProviderType;
+      initialModel: string;
+    };
+
+export function VisionProviderWizard(props: VisionProviderWizardProps) {
+  const isEdit = props.mode === "edit";
   const router = useRouter();
   const [provider, setProvider] = useState<VisionProviderType>(
-    existingSetting?.provider ?? "ANTHROPIC"
+    isEdit ? props.initialProvider : "ANTHROPIC"
   );
-  const [model, setModel] = useState(existingSetting?.model ?? "");
+  const [model, setModel] = useState(isEdit ? props.initialModel : "");
   const [apiKey, setApiKey] = useState("");
+  const [apiKeyEdited, setApiKeyEdited] = useState(false);
   const [testResult, setTestResult] = useState<"reachable" | "unreachable" | null>(null);
   const [isTesting, startTest] = useTransition();
-  const [isRemoving, startRemove] = useTransition();
 
   const [state, formAction, pending] = useActionState(saveVisionProviderSetting, {
     error: null,
@@ -50,8 +59,7 @@ export function VisionProviderWizard({
 
   useEffect(() => {
     if (wasPending.current && !pending && !state.error) {
-      setApiKey("");
-      router.refresh();
+      router.back();
     }
     wasPending.current = pending;
   }, [pending, state, router]);
@@ -68,7 +76,17 @@ export function VisionProviderWizard({
 
   function handleApiKeyChange(value: string) {
     setApiKey(value);
+    setApiKeyEdited(true);
     setTestResult(null);
+  }
+
+  /** Clears the placeholder dots on focus so the user types a genuine new key instead of editing them. */
+  function handleApiKeyFocus() {
+    if (isEdit && !apiKeyEdited) {
+      setApiKey("");
+      setApiKeyEdited(true);
+      setTestResult(null);
+    }
   }
 
   function handleTest() {
@@ -88,27 +106,19 @@ export function VisionProviderWizard({
     });
   }
 
-  function handleRemove() {
-    if (!window.confirm("Disable the vision-API fallback and remove the stored API key?")) {
-      return;
-    }
-    startRemove(async () => {
-      await deleteVisionProviderSetting();
-      router.refresh();
-    });
-  }
-
-  const hasUsableKey = apiKey.trim().length > 0 || isConfigured;
+  const hasUsableKey = apiKey.trim().length > 0 || isEdit;
   const canSubmit = model.trim().length > 0 && hasUsableKey;
 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="md-headline-small text-on-surface">Vision Provider</h1>
+        <h2 className="md-title-medium text-on-surface">
+          {isEdit ? "Edit vision provider" : "Add vision provider"}
+        </h2>
         <p className="md-body-medium text-on-surface-variant">
-          When plain OCR can&apos;t read a nameplate photo&apos;s article number, this
-          vision-capable AI model is asked to read it instead. Optional - without a configured
-          provider, only OCR is used.
+          {isEdit
+            ? "Update this vision provider's details. Test the connection before saving."
+            : "Configure a vision-capable AI model as a fallback for reading nameplate photos when plain OCR can't extract an article number."}
         </p>
       </div>
 
@@ -141,9 +151,10 @@ export function VisionProviderWizard({
         API key
         <input
           type="password"
-          value={apiKey}
+          value={isEdit && !apiKeyEdited ? STORED_KEY_PLACEHOLDER : apiKey}
           onChange={(event) => handleApiKeyChange(event.target.value)}
-          placeholder={isConfigured ? "Configured - leave blank to keep it" : "Paste your API key"}
+          onFocus={handleApiKeyFocus}
+          placeholder="Paste your API key"
           className={FIELD_CLASSES}
         />
       </label>
@@ -178,28 +189,9 @@ export function VisionProviderWizard({
         </p>
       )}
 
-      <div className="flex items-center gap-3">
-        <Button
-          type="button"
-          onClick={handleSave}
-          disabled={!canSubmit || pending}
-          className="w-fit"
-        >
-          {pending ? "Saving…" : "Save"}
-        </Button>
-        {isConfigured && (
-          <Button
-            type="button"
-            variant="text"
-            color="error"
-            onClick={handleRemove}
-            disabled={isRemoving}
-            className="w-fit"
-          >
-            {isRemoving ? "Removing…" : "Disable vision fallback"}
-          </Button>
-        )}
-      </div>
+      <Button type="button" onClick={handleSave} disabled={!canSubmit || pending} className="w-fit">
+        {pending ? "Saving…" : "Save"}
+      </Button>
     </div>
   );
 }

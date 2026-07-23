@@ -3,37 +3,34 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ActionState, VisionProviderConnectionResult } from "@/lib/vision-provider-actions";
 
-const { saveVisionProviderSetting, deleteVisionProviderSetting, testVisionProviderConnection } =
-  vi.hoisted(() => ({
-    saveVisionProviderSetting:
-      vi.fn<(prevState: ActionState, formData: FormData) => Promise<ActionState>>(),
-    deleteVisionProviderSetting: vi.fn<() => Promise<void>>(),
-    testVisionProviderConnection:
-      vi.fn<
-        (provider: string, model: string, apiKey: string) => Promise<VisionProviderConnectionResult>
-      >(),
-  }));
-const refresh = vi.fn();
+const { saveVisionProviderSetting, testVisionProviderConnection } = vi.hoisted(() => ({
+  saveVisionProviderSetting:
+    vi.fn<(prevState: ActionState, formData: FormData) => Promise<ActionState>>(),
+  testVisionProviderConnection:
+    vi.fn<
+      (provider: string, model: string, apiKey: string) => Promise<VisionProviderConnectionResult>
+    >(),
+}));
+const back = vi.fn();
 
 vi.mock("@/lib/vision-provider-actions", () => ({
   saveVisionProviderSetting,
-  deleteVisionProviderSetting,
   testVisionProviderConnection,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ back }) }));
 
 const { VisionProviderWizard } = await import("./VisionProviderWizard");
 
 beforeEach(() => {
   vi.clearAllMocks();
   saveVisionProviderSetting.mockResolvedValue({ error: null });
-  vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
-describe("VisionProviderWizard (not yet configured)", () => {
+describe("VisionProviderWizard (create mode)", () => {
   it("defaults to Claude, an empty model, and an empty key, with Save/Test disabled", () => {
-    render(<VisionProviderWizard existingSetting={null} />);
+    render(<VisionProviderWizard mode="create" />);
 
+    expect(screen.getByRole("heading", { name: "Add vision provider" })).toBeInTheDocument();
     expect(screen.getByLabelText("Provider")).toHaveValue("ANTHROPIC");
     expect(screen.getByLabelText("Model")).toHaveValue("");
     expect(screen.getByLabelText("API key")).toHaveValue("");
@@ -41,17 +38,9 @@ describe("VisionProviderWizard (not yet configured)", () => {
     expect(screen.getByRole("button", { name: "Test connection" })).toBeDisabled();
   });
 
-  it("does not show a 'Disable vision fallback' button", () => {
-    render(<VisionProviderWizard existingSetting={null} />);
-
-    expect(
-      screen.queryByRole("button", { name: "Disable vision fallback" })
-    ).not.toBeInTheDocument();
-  });
-
   it("requires both a model and an API key before Save/Test are enabled", async () => {
     const user = userEvent.setup();
-    render(<VisionProviderWizard existingSetting={null} />);
+    render(<VisionProviderWizard mode="create" />);
 
     await user.type(screen.getByLabelText("Model"), "claude-sonnet-5");
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
@@ -68,7 +57,7 @@ describe("VisionProviderWizard (not yet configured)", () => {
       new Promise((resolve) => (resolveTest = resolve))
     );
 
-    render(<VisionProviderWizard existingSetting={null} />);
+    render(<VisionProviderWizard mode="create" />);
     await user.type(screen.getByLabelText("Model"), "claude-sonnet-5");
     await user.type(screen.getByLabelText("API key"), "sk-ant-test");
     await user.click(screen.getByRole("button", { name: /Test connection/ }));
@@ -89,7 +78,7 @@ describe("VisionProviderWizard (not yet configured)", () => {
     const user = userEvent.setup();
     testVisionProviderConnection.mockResolvedValue({ status: "unreachable" });
 
-    render(<VisionProviderWizard existingSetting={null} />);
+    render(<VisionProviderWizard mode="create" />);
     await user.type(screen.getByLabelText("Model"), "claude-sonnet-5");
     await user.type(screen.getByLabelText("API key"), "sk-ant-test");
     await user.click(screen.getByRole("button", { name: /Test connection/ }));
@@ -103,7 +92,7 @@ describe("VisionProviderWizard (not yet configured)", () => {
     const user = userEvent.setup();
     testVisionProviderConnection.mockResolvedValue({ status: "reachable" });
 
-    render(<VisionProviderWizard existingSetting={null} />);
+    render(<VisionProviderWizard mode="create" />);
     await user.type(screen.getByLabelText("Model"), "claude-sonnet-5");
     await user.type(screen.getByLabelText("API key"), "sk-ant-test");
     await user.click(screen.getByRole("button", { name: /Test connection/ }));
@@ -116,7 +105,7 @@ describe("VisionProviderWizard (not yet configured)", () => {
 
   it("saves the entered provider, model, and API key", async () => {
     const user = userEvent.setup();
-    render(<VisionProviderWizard existingSetting={null} />);
+    render(<VisionProviderWizard mode="create" />);
 
     await user.selectOptions(screen.getByLabelText("Provider"), "OPENAI");
     await user.type(screen.getByLabelText("Model"), "gpt-5.6");
@@ -130,12 +119,12 @@ describe("VisionProviderWizard (not yet configured)", () => {
     expect(formData.get("apiKey")).toBe("sk-openai-test");
   });
 
-  it("shows Saving… while pending, then clears the API key and refreshes on success", async () => {
+  it("shows Saving… while pending and navigates back on success", async () => {
     const user = userEvent.setup();
     let resolveSave!: (state: ActionState) => void;
     saveVisionProviderSetting.mockReturnValue(new Promise((resolve) => (resolveSave = resolve)));
 
-    render(<VisionProviderWizard existingSetting={null} />);
+    render(<VisionProviderWizard mode="create" />);
     await user.type(screen.getByLabelText("Model"), "claude-sonnet-5");
     await user.type(screen.getByLabelText("API key"), "sk-ant-test");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -144,73 +133,83 @@ describe("VisionProviderWizard (not yet configured)", () => {
 
     resolveSave({ error: null });
 
-    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
-    expect(screen.getByLabelText("API key")).toHaveValue("");
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
   });
 
-  it("displays the error returned by saveVisionProviderSetting and does not refresh", async () => {
+  it("displays the error returned by saveVisionProviderSetting and does not navigate away", async () => {
     const user = userEvent.setup();
     saveVisionProviderSetting.mockResolvedValue({ error: "API key is required." });
 
-    render(<VisionProviderWizard existingSetting={null} />);
+    render(<VisionProviderWizard mode="create" />);
     await user.type(screen.getByLabelText("Model"), "claude-sonnet-5");
     await user.type(screen.getByLabelText("API key"), "sk-ant-test");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("API key is required.");
-    expect(refresh).not.toHaveBeenCalled();
+    expect(back).not.toHaveBeenCalled();
   });
 });
 
-describe("VisionProviderWizard (already configured)", () => {
-  const existingSetting = { provider: "ANTHROPIC" as const, model: "claude-sonnet-5" };
+describe("VisionProviderWizard (edit mode)", () => {
+  it("prefills the provider and model, shows placeholder dots for the stored key, and enables Save/Test without entering a key", () => {
+    render(
+      <VisionProviderWizard mode="edit" initialProvider="ANTHROPIC" initialModel="claude-sonnet-5" />
+    );
 
-  it("prefills the provider and model, and enables Save/Test without entering a key", () => {
-    render(<VisionProviderWizard existingSetting={existingSetting} />);
-
+    expect(screen.getByRole("heading", { name: "Edit vision provider" })).toBeInTheDocument();
     expect(screen.getByLabelText("Provider")).toHaveValue("ANTHROPIC");
     expect(screen.getByLabelText("Model")).toHaveValue("claude-sonnet-5");
-    expect(screen.getByLabelText("API key")).toHaveValue("");
+    expect(screen.getByLabelText("API key")).toHaveValue("•".repeat(16));
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Test connection" })).toBeEnabled();
   });
 
-  it("shows a 'Disable vision fallback' button", () => {
-    render(<VisionProviderWizard existingSetting={existingSetting} />);
+  it("clears the placeholder dots as soon as the API key field is focused", async () => {
+    const user = userEvent.setup();
+    render(
+      <VisionProviderWizard mode="edit" initialProvider="ANTHROPIC" initialModel="claude-sonnet-5" />
+    );
 
-    expect(screen.getByRole("button", { name: "Disable vision fallback" })).toBeInTheDocument();
+    await user.click(screen.getByLabelText("API key"));
+
+    expect(screen.getByLabelText("API key")).toHaveValue("");
   });
 
-  it("removes the setting and refreshes when the user confirms", async () => {
+  it("sends the freshly typed key after replacing the placeholder dots", async () => {
     const user = userEvent.setup();
-    render(<VisionProviderWizard existingSetting={existingSetting} />);
+    render(
+      <VisionProviderWizard mode="edit" initialProvider="ANTHROPIC" initialModel="claude-sonnet-5" />
+    );
 
-    await user.click(screen.getByRole("button", { name: "Disable vision fallback" }));
+    await user.type(screen.getByLabelText("API key"), "sk-new-key");
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(window.confirm).toHaveBeenCalled();
-    await waitFor(() => expect(deleteVisionProviderSetting).toHaveBeenCalledTimes(1));
-    expect(refresh).toHaveBeenCalledTimes(1);
-  });
-
-  it("does nothing when the user cancels the confirmation", async () => {
-    const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(false);
-
-    render(<VisionProviderWizard existingSetting={existingSetting} />);
-    await user.click(screen.getByRole("button", { name: "Disable vision fallback" }));
-
-    expect(deleteVisionProviderSetting).not.toHaveBeenCalled();
-    expect(refresh).not.toHaveBeenCalled();
+    await waitFor(() => expect(saveVisionProviderSetting).toHaveBeenCalledTimes(1));
+    const [, formData] = saveVisionProviderSetting.mock.calls[0];
+    expect(formData.get("apiKey")).toBe("sk-new-key");
   });
 
   it("saves with a blank API key when the user doesn't change it", async () => {
     const user = userEvent.setup();
-    render(<VisionProviderWizard existingSetting={existingSetting} />);
+    render(
+      <VisionProviderWizard mode="edit" initialProvider="ANTHROPIC" initialModel="claude-sonnet-5" />
+    );
 
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(saveVisionProviderSetting).toHaveBeenCalledTimes(1));
     const [, formData] = saveVisionProviderSetting.mock.calls[0];
     expect(formData.get("apiKey")).toBe("");
+  });
+
+  it("navigates back after a successful edit", async () => {
+    const user = userEvent.setup();
+    render(
+      <VisionProviderWizard mode="edit" initialProvider="ANTHROPIC" initialModel="claude-sonnet-5" />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
   });
 });

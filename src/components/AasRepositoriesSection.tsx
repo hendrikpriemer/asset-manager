@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { deleteAasRepository } from "@/lib/aas-repository-actions";
 import { AasRepositoryStatusIndicator } from "@/components/AasRepositoryStatusIndicator";
+import { BackLink } from "@/components/BackLink";
 import { DeleteAasRepositoryButton } from "@/components/DeleteAasRepositoryButton";
 import { Icon } from "@/components/Icon";
 import { Tooltip } from "@/components/Tooltip";
@@ -19,6 +20,7 @@ export function AasRepositoriesSection({
 }) {
   return (
     <div className="flex flex-col gap-6">
+      <BackLink href="/settings" label="Settings" />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="md-headline-small text-on-surface">

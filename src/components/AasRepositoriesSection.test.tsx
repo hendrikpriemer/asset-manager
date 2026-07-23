@@ -14,6 +14,15 @@ vi.mock("@/lib/aas-repository-actions", () => ({
 }));
 
 describe("AasRepositoriesSection", () => {
+  it("links back to the central Settings page", () => {
+    render(<AasRepositoriesSection repositories={[]} />);
+
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/settings"
+    );
+  });
+
   it("shows an empty state when no repositories are configured", () => {
     render(<AasRepositoriesSection repositories={[]} />);
 
