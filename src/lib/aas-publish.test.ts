@@ -13,8 +13,10 @@ vi.mock("@/lib/aas-mirror", () => ({ mirrorAasDataToLocalRepo }));
 const {
   assetShellId,
   assetMetadataSubmodelId,
+  assetNameplateSubmodelId,
   buildAssetShell,
   buildAssetMetadataSubmodel,
+  buildAssetNameplateSubmodel,
   publishAssetAas,
   unpublishAssetAas,
 } = await import("./aas-publish");
@@ -32,6 +34,7 @@ const baseAsset = {
   structureNodeId: null,
   aasEndpointUrl: null,
   aasGlobalAssetId: null,
+  nameplateSubmodelGeneratedAt: null,
 };
 
 beforeEach(() => {
@@ -48,11 +51,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("assetShellId / assetMetadataSubmodelId", () => {
+describe("assetShellId / assetMetadataSubmodelId / assetNameplateSubmodelId", () => {
   it("derives stable, distinct ids from the asset id", () => {
     expect(assetShellId("asset-1")).toBe("https://asset-manager.internal/aas/asset-1");
     expect(assetMetadataSubmodelId("asset-1")).toBe(
       "https://asset-manager.internal/sm/asset-1/metadata"
+    );
+    expect(assetNameplateSubmodelId("asset-1")).toBe(
+      "https://asset-manager.internal/sm/asset-1/nameplate"
     );
   });
 });
@@ -81,6 +87,28 @@ describe("buildAssetShell", () => {
         },
       ],
     });
+  });
+
+  it("also references the nameplate submodel once one has been generated", () => {
+    const shell = buildAssetShell({
+      ...baseAsset,
+      nameplateSubmodelGeneratedAt: new Date("2026-01-01T00:00:00Z"),
+    });
+
+    expect(shell.submodels).toEqual([
+      {
+        type: "ModelReference",
+        keys: [
+          { type: "Submodel", value: "https://asset-manager.internal/sm/asset-1/metadata" },
+        ],
+      },
+      {
+        type: "ModelReference",
+        keys: [
+          { type: "Submodel", value: "https://asset-manager.internal/sm/asset-1/nameplate" },
+        ],
+      },
+    ]);
   });
 });
 
@@ -142,6 +170,114 @@ describe("buildAssetMetadataSubmodel", () => {
   });
 });
 
+describe("buildAssetNameplateSubmodel", () => {
+  const emptyFields = {
+    manufacturerName: null,
+    productDesignation: null,
+    orderCode: null,
+    serialNumber: null,
+    yearOfConstruction: null,
+    street: null,
+    zipcode: null,
+    cityTown: null,
+    nationalCode: null,
+  };
+
+  it("has the real IDTA Digital Nameplate v2.0 semanticId, idShort, and id", () => {
+    const submodel = buildAssetNameplateSubmodel("asset-1", emptyFields);
+
+    expect(submodel.id).toBe("https://asset-manager.internal/sm/asset-1/nameplate");
+    expect(submodel.idShort).toBe("Nameplate");
+    expect(submodel.semanticId).toEqual({
+      type: "ExternalReference",
+      keys: [
+        { type: "GlobalReference", value: "https://admin-shell.io/zvei/nameplate/2/0/Nameplate" },
+      ],
+    });
+  });
+
+  it("includes no elements when every field is blank", () => {
+    const submodel = buildAssetNameplateSubmodel("asset-1", emptyFields);
+
+    expect(submodel.submodelElements).toEqual([]);
+  });
+
+  it("includes only the product properties that are set, and no ContactInformation group without any address field", () => {
+    const submodel = buildAssetNameplateSubmodel("asset-1", {
+      ...emptyFields,
+      manufacturerName: "WAGO",
+      orderCode: "750-451",
+      serialNumber: "1004447940",
+    });
+
+    expect(submodel.submodelElements).toEqual([
+      { modelType: "Property", idShort: "ManufacturerName", valueType: "xs:string", value: "WAGO" },
+      { modelType: "Property", idShort: "OrderCodeOfManufacturer", valueType: "xs:string", value: "750-451" },
+      { modelType: "Property", idShort: "SerialNumber", valueType: "xs:string", value: "1004447940" },
+    ]);
+  });
+
+  it("groups the address fields into a ContactInformation collection when any are set", () => {
+    const submodel = buildAssetNameplateSubmodel("asset-1", {
+      ...emptyFields,
+      street: "Hansastr. 27",
+      zipcode: "32423",
+      cityTown: "Minden",
+      nationalCode: "DE",
+    });
+
+    expect(submodel.submodelElements).toEqual([
+      {
+        modelType: "SubmodelElementCollection",
+        idShort: "ContactInformation",
+        value: [
+          { modelType: "Property", idShort: "Street", valueType: "xs:string", value: "Hansastr. 27" },
+          { modelType: "Property", idShort: "Zipcode", valueType: "xs:string", value: "32423" },
+          { modelType: "Property", idShort: "CityTown", valueType: "xs:string", value: "Minden" },
+          { modelType: "Property", idShort: "NationalCode", valueType: "xs:string", value: "DE" },
+        ],
+      },
+    ]);
+  });
+
+  it("includes every field when all are set", () => {
+    const submodel = buildAssetNameplateSubmodel("asset-1", {
+      manufacturerName: "WAGO",
+      productDesignation: "4AO 0-10V DC",
+      orderCode: "750-451",
+      serialNumber: "1004447940",
+      yearOfConstruction: "2024",
+      street: "Hansastr. 27",
+      zipcode: "32423",
+      cityTown: "Minden",
+      nationalCode: "DE",
+    });
+
+    expect(submodel.submodelElements).toEqual([
+      { modelType: "Property", idShort: "ManufacturerName", valueType: "xs:string", value: "WAGO" },
+      {
+        modelType: "Property",
+        idShort: "ManufacturerProductDesignation",
+        valueType: "xs:string",
+        value: "4AO 0-10V DC",
+      },
+      { modelType: "Property", idShort: "OrderCodeOfManufacturer", valueType: "xs:string", value: "750-451" },
+      { modelType: "Property", idShort: "SerialNumber", valueType: "xs:string", value: "1004447940" },
+      { modelType: "Property", idShort: "YearOfConstruction", valueType: "xs:string", value: "2024" },
+      {
+        modelType: "SubmodelElementCollection",
+        idShort: "ContactInformation",
+        value: [
+          { modelType: "Property", idShort: "Street", valueType: "xs:string", value: "Hansastr. 27" },
+          { modelType: "Property", idShort: "Zipcode", valueType: "xs:string", value: "32423" },
+          { modelType: "Property", idShort: "CityTown", valueType: "xs:string", value: "Minden" },
+          { modelType: "Property", idShort: "NationalCode", valueType: "xs:string", value: "DE" },
+        ],
+      },
+    ]);
+  });
+});
+
 describe("publishAssetAas", () => {
   it("mirrors the built shell and submodel, translating a successful status", async () => {
     mirrorAasDataToLocalRepo.mockResolvedValue("mirrored");
@@ -173,6 +309,10 @@ describe("unpublishAssetAas", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${LOCAL_BASE}/submodels/${encode("https://asset-manager.internal/sm/asset-1/metadata")}`,
+      expect.objectContaining({ method: "DELETE" })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${LOCAL_BASE}/submodels/${encode("https://asset-manager.internal/sm/asset-1/nameplate")}`,
       expect.objectContaining({ method: "DELETE" })
     );
     expect(fetchMock).toHaveBeenCalledWith(

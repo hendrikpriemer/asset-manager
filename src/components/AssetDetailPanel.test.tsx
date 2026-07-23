@@ -24,6 +24,7 @@ function makeAsset(overrides: Partial<AssetDetail> = {}): AssetDetail {
     aasGlobalAssetId: null,
     aasSearchText: null,
     aasSearchIndexedAt: null,
+    nameplateSubmodelGeneratedAt: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,

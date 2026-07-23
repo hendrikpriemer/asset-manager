@@ -1,6 +1,6 @@
 {
   "name": "asset-manager",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -23,6 +23,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-leaflet": "^5.0.0",
+    "sharp": "^0.35.3",
+    "tesseract.js": "^7.0.0",
     "three": "^0.185.1"
   },
   "devDependencies": {

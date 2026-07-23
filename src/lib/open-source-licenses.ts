@@ -20,5 +20,7 @@ export const OPEN_SOURCE_LICENSES: OpenSourceLicense[] = [
   { name: "react", version: "19.2.4", license: "MIT" },
   { name: "react-dom", version: "19.2.4", license: "MIT" },
   { name: "react-leaflet", version: "5.0.0", license: "Hippocratic-2.1" },
+  { name: "sharp", version: "0.35.3", license: "Apache-2.0" },
+  { name: "tesseract.js", version: "7.0.0", license: "Apache-2.0" },
   { name: "three", version: "0.185.1", license: "MIT" },
 ];

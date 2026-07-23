@@ -3,6 +3,7 @@ import type { Asset } from "@/generated/prisma/client";
 import type { AasData } from "@/lib/aas";
 import { AasViewer } from "@/components/AasViewer";
 import { RefreshAasSearchIndexButton } from "@/components/RefreshAasSearchIndexButton";
+import { NameplateAnalysisButton } from "@/components/NameplateAnalysisButton";
 
 type AssetDetail = Omit<Asset, "assetImage" | "nameplateImage">;
 
@@ -55,6 +56,7 @@ export function AssetDetailPanel({
                 alt={`${asset.name} nameplate`}
                 className="h-32 w-32 rounded-xs object-cover"
               />
+              <NameplateAnalysisButton assetId={asset.id} />
             </div>
           )}
         </div>

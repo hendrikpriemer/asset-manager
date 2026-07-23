@@ -38,7 +38,7 @@ const MAIN_NAV_ITEMS: NavItem[] = [
 
 const FOOTER_NAV_ITEMS: NavItem[] = [
   {
-    href: "/settings/aas-repositories",
+    href: "/settings",
     label: "Settings",
     icon: "settings",
     exact: false,

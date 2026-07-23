@@ -13,21 +13,22 @@ datasource db {
 }
 
 model Asset {
-  id                 String              @id @default(cuid())
-  name               String
-  description        String?
-  structureNodeId    String?
-  structureNode      AssetStructureNode? @relation(fields: [structureNodeId], references: [id], onDelete: SetNull)
-  assetImage         Bytes?
-  assetImageType     String?
-  nameplateImage     Bytes?
-  nameplateImageType String?
-  aasEndpointUrl     String?
-  aasGlobalAssetId   String?
-  aasSearchText      String?
-  aasSearchIndexedAt DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                           String              @id @default(cuid())
+  name                         String
+  description                  String?
+  structureNodeId              String?
+  structureNode                AssetStructureNode? @relation(fields: [structureNodeId], references: [id], onDelete: SetNull)
+  assetImage                   Bytes?
+  assetImageType               String?
+  nameplateImage               Bytes?
+  nameplateImageType           String?
+  aasEndpointUrl               String?
+  aasGlobalAssetId             String?
+  aasSearchText                String?
+  aasSearchIndexedAt           DateTime?
+  nameplateSubmodelGeneratedAt DateTime?
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
 
   @@index([structureNodeId])
 }
@@ -40,6 +41,24 @@ model AasRepository {
   createdAt     DateTime @default(now())
 }
 
+enum VisionProviderType {
+  ANTHROPIC
+  OPENAI
+  MISTRAL
+}
+
+// A single row, if present, configures the vision-API fallback used by the
+// nameplate-photo identification feature when plain OCR can't extract an
+// article number - see lib/vision-provider-settings.ts. No row means the
+// fallback is disabled and OCR is used on its own.
+model VisionProviderSetting {
+  id              String             @id @default(cuid())
+  provider        VisionProviderType
+  model           String
+  encryptedApiKey String
+  updatedAt       DateTime           @updatedAt
+}
+
 enum AssetStructureLevel {
   ENTERPRISE
   SITE
@@ -49,7 +68,7 @@ enum AssetStructureLevel {
 }
 
 model AssetStructureNode {
-  id           String              @id @default(cuid())
+  id           String               @id @default(cuid())
   level        AssetStructureLevel
   name         String
   description  String?
@@ -57,13 +76,13 @@ model AssetStructureNode {
   timezone     String?
   manufacturer String?
   serialNumber String?
-  position     Int                 @default(0)
+  position     Int                  @default(0)
   parentId     String?
-  parent      AssetStructureNode?  @relation("AssetStructureNodeParent", fields: [parentId], references: [id], onDelete: Cascade)
-  children    AssetStructureNode[] @relation("AssetStructureNodeParent")
-  assets      Asset[]
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  parent       AssetStructureNode?  @relation("AssetStructureNodeParent", fields: [parentId], references: [id], onDelete: Cascade)
+  children     AssetStructureNode[] @relation("AssetStructureNodeParent")
+  assets       Asset[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
   @@index([parentId, position])
 }

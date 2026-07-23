@@ -215,6 +215,7 @@ describe("filterAssetsWithStructurePath", () => {
       aasGlobalAssetId: null,
       aasSearchText: null,
       aasSearchIndexedAt: null,
+      nameplateSubmodelGeneratedAt: null,
       createdAt: now,
       updatedAt: now,
       structurePath: null,

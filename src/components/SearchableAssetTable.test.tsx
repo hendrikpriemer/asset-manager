@@ -20,6 +20,7 @@ function makeAsset(
     aasGlobalAssetId: null,
     aasSearchText: null,
     aasSearchIndexedAt: null,
+    nameplateSubmodelGeneratedAt: null,
     structurePath: null,
     structureLevel: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),

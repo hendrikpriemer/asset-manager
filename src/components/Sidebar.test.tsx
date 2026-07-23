@@ -60,7 +60,7 @@ describe("Sidebar", () => {
     );
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
       "href",
-      "/settings/aas-repositories"
+      "/settings"
     );
   });
 

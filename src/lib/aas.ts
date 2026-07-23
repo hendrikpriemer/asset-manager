@@ -31,7 +31,13 @@
 
 import { prisma } from "@/lib/prisma";
 
-const FETCH_TIMEOUT_MS = 5000;
+// Confirmed live: WAGO's own `assetIds` filter search occasionally takes
+// ~15s to answer for a legitimately-matching query (not an outage - the
+// same request succeeds if given enough time) - the original 5s budget
+// made this reliably time out before the (paired) retry could ever help,
+// producing a false "no match" for the nameplate-photo identification
+// feature even when WAGO's repository genuinely has the shell.
+const FETCH_TIMEOUT_MS = 8000;
 // Mirrors the same one-retry-after-a-pause approach used for the Settings
 // connection-status check (aas-repository-actions.ts) - a single slow/
 // stalled response (confirmed live against WAGO: headers arrive, body
