@@ -127,9 +127,13 @@ export function AssetWizard(props: AssetWizardProps) {
   function handleCheckAas() {
     startAasCheck(async () => {
       const result = await checkAasReference(
-        classifyAasReference(aasReference)
+        classifyAasReference(aasReference),
+        aasReference
       );
       setAasCheckResult(result);
+      if (result.status === "resolved" && result.matchedGlobalAssetId) {
+        setAasReference(result.matchedGlobalAssetId);
+      }
     });
   }
 
@@ -303,9 +307,10 @@ export function AssetWizard(props: AssetWizardProps) {
               </h2>
               <p className="md-body-medium text-on-surface-variant">
                 Optionally link this asset to an Asset Administration Shell
-                (AAS) by entering either a direct endpoint URL or a global
-                asset ID to look up in the configured AAS repository - we
-                detect which one you entered. You can skip this step.
+                (AAS) by entering a direct endpoint URL, a global asset ID, or
+                a manufacturer&apos;s material/serial number to search the
+                configured repositories for - we detect which one you
+                entered. You can skip this step.
               </p>
             </div>
             <label className="flex flex-col gap-1 md-body-small text-on-surface-variant">
@@ -333,7 +338,9 @@ export function AssetWizard(props: AssetWizardProps) {
               </Button>
               {aasCheckResult?.status === "resolved" && (
                 <p role="status" className="md-body-small text-on-surface">
-                  Resolved: {aasCheckResult.idShort}
+                  {aasCheckResult.matchedGlobalAssetId
+                    ? `Found via repository search: ${aasCheckResult.idShort}`
+                    : `Resolved: ${aasCheckResult.idShort}`}
                 </p>
               )}
               {aasCheckResult?.status === "unresolved" && (

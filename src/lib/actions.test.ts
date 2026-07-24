@@ -16,11 +16,13 @@ const { publishAssetAas, unpublishAssetAas } = vi.hoisted(() => ({
   publishAssetAas: vi.fn(),
   unpublishAssetAas: vi.fn(),
 }));
+const { resolveAasReference } = vi.hoisted(() => ({ resolveAasReference: vi.fn() }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/prisma", () => ({ prisma }));
 vi.mock("@/lib/aas-reindex", () => ({ reindexAssetAas }));
 vi.mock("@/lib/aas-publish", () => ({ publishAssetAas, unpublishAssetAas }));
+vi.mock("@/lib/aas-actions", () => ({ resolveAasReference }));
 
 const { createAsset, updateAsset, deleteAsset, refreshAasSearchIndex } =
   await import("./actions");
@@ -42,6 +44,9 @@ beforeEach(() => {
   prisma.asset.update.mockResolvedValue(createdAsset);
   publishAssetAas.mockResolvedValue("published");
   unpublishAssetAas.mockResolvedValue(undefined);
+  // No repository-search correction by default - the classified reference
+  // is used as-is, matching every existing test's expectations.
+  resolveAasReference.mockResolvedValue(null);
 });
 
 describe("createAsset", () => {
@@ -193,6 +198,69 @@ describe("createAsset", () => {
     const [{ data }] = prisma.asset.create.mock.calls[0];
     expect(data.aasSearchText).toBeUndefined();
     expect(data.aasSearchIndexedAt).toBeUndefined();
+  });
+
+  it("persists the resolved globalAssetId when a bare material/serial number is corrected via repository search", async () => {
+    resolveAasReference.mockResolvedValue({
+      reference: {
+        aasEndpointUrl: null,
+        aasGlobalAssetId: "https://dt.r-stahl.com/aas/instance/10003506595",
+      },
+      idShort: "x",
+    });
+    const formData = formDataWith({
+      name: "Remote I/O module",
+      description: "Zone 1",
+      aasReference: "10003506595",
+    });
+
+    await createAsset({ error: null }, formData);
+
+    expect(resolveAasReference).toHaveBeenCalledWith(
+      { aasGlobalAssetId: "10003506595" },
+      "10003506595"
+    );
+    const [{ data }] = prisma.asset.create.mock.calls[0];
+    expect(data.aasGlobalAssetId).toBe("https://dt.r-stahl.com/aas/instance/10003506595");
+    expect(reindexAssetAas).toHaveBeenCalledWith({
+      aasEndpointUrl: null,
+      aasGlobalAssetId: "https://dt.r-stahl.com/aas/instance/10003506595",
+    });
+  });
+
+  it("does not attempt the repository search when no AAS reference was entered", async () => {
+    const formData = formDataWith({ name: "Laptop", description: "Work" });
+
+    await createAsset({ error: null }, formData);
+
+    expect(resolveAasReference).not.toHaveBeenCalled();
+  });
+
+  it("does not attempt the repository search when an endpoint URL was entered", async () => {
+    const formData = formDataWith({
+      name: "Lathe",
+      description: "Main lathe",
+      aasReference: "https://vendor.example/shells/lathe-1",
+    });
+
+    await createAsset({ error: null }, formData);
+
+    expect(resolveAasReference).not.toHaveBeenCalled();
+  });
+
+  it("defaults the resolved reference's fields to null when unset", async () => {
+    resolveAasReference.mockResolvedValue({ reference: {}, idShort: "x" });
+    const formData = formDataWith({
+      name: "Lathe",
+      description: "Main lathe",
+      aasReference: "10003506595",
+    });
+
+    await createAsset({ error: null }, formData);
+
+    const [{ data }] = prisma.asset.create.mock.calls[0];
+    expect(data.aasEndpointUrl).toBeNull();
+    expect(data.aasGlobalAssetId).toBeNull();
   });
 });
 
@@ -406,6 +474,30 @@ describe("updateAsset", () => {
     const [{ data }] = prisma.asset.update.mock.calls[0];
     expect(data.aasSearchText).toBeUndefined();
     expect(data.aasSearchIndexedAt).toBeUndefined();
+  });
+
+  it("persists the resolved globalAssetId when a bare material/serial number is corrected via repository search", async () => {
+    resolveAasReference.mockResolvedValue({
+      reference: {
+        aasEndpointUrl: null,
+        aasGlobalAssetId: "https://dt.r-stahl.com/aas/instance/10003506595",
+      },
+      idShort: "x",
+    });
+    const formData = formDataWith({
+      name: "Remote I/O module",
+      description: "Zone 1",
+      aasReference: "10003506595",
+    });
+
+    await updateAsset("asset-1", { error: null }, formData);
+
+    expect(resolveAasReference).toHaveBeenCalledWith(
+      { aasGlobalAssetId: "10003506595" },
+      "10003506595"
+    );
+    const [{ data }] = prisma.asset.update.mock.calls[0];
+    expect(data.aasGlobalAssetId).toBe("https://dt.r-stahl.com/aas/instance/10003506595");
   });
 });
 

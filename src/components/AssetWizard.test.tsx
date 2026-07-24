@@ -22,10 +22,10 @@ const { createAsset, updateAsset } = vi.hoisted(() => ({
 }));
 const { checkAasReference } = vi.hoisted(() => ({
   checkAasReference: vi.fn<
-    (reference: {
-      aasEndpointUrl: string | null;
-      aasGlobalAssetId: string | null;
-    }) => Promise<AasCheckResult>
+    (
+      reference: { aasEndpointUrl: string | null; aasGlobalAssetId: string | null },
+      rawValue: string
+    ) => Promise<AasCheckResult>
   >(),
 }));
 const back = vi.fn();
@@ -243,7 +243,7 @@ describe("AssetWizard (create mode)", () => {
       screen.getByRole("status", { name: "Checking connection" })
     ).toBeInTheDocument();
 
-    resolveCheck({ status: "resolved", idShort: "TestLathe1" });
+    resolveCheck({ status: "resolved", idShort: "TestLathe1", matchedGlobalAssetId: null });
 
     expect(await screen.findByText("Resolved: TestLathe1")).toBeInTheDocument();
     expect(
@@ -255,6 +255,7 @@ describe("AssetWizard (create mode)", () => {
     checkAasReference.mockResolvedValue({
       status: "resolved",
       idShort: "TestLathe1",
+      matchedGlobalAssetId: null,
     });
     render(<AssetWizard mode="create" structureOptions={[]} />);
     const user = await goToAasStep();
@@ -266,10 +267,10 @@ describe("AssetWizard (create mode)", () => {
     await user.click(screen.getByRole("button", { name: "Test connection" }));
 
     expect(await screen.findByText("Resolved: TestLathe1")).toBeInTheDocument();
-    expect(checkAasReference).toHaveBeenCalledWith({
-      aasEndpointUrl: "http://example.com/shells/abc",
-      aasGlobalAssetId: null,
-    });
+    expect(checkAasReference).toHaveBeenCalledWith(
+      { aasEndpointUrl: "http://example.com/shells/abc", aasGlobalAssetId: null },
+      "http://example.com/shells/abc"
+    );
   });
 
   it("classifies a value without /shells/ as a globalAssetId when testing the connection", async () => {
@@ -286,16 +287,17 @@ describe("AssetWizard (create mode)", () => {
     expect(
       await screen.findByText("Could not resolve this AAS reference.")
     ).toBeInTheDocument();
-    expect(checkAasReference).toHaveBeenCalledWith({
-      aasEndpointUrl: null,
-      aasGlobalAssetId: "https://example.com/assets/abc",
-    });
+    expect(checkAasReference).toHaveBeenCalledWith(
+      { aasEndpointUrl: null, aasGlobalAssetId: "https://example.com/assets/abc" },
+      "https://example.com/assets/abc"
+    );
   });
 
   it("clears the Test connection result when the field is edited again", async () => {
     checkAasReference.mockResolvedValue({
       status: "resolved",
       idShort: "TestLathe1",
+      matchedGlobalAssetId: null,
     });
     render(<AssetWizard mode="create" structureOptions={[]} />);
     const user = await goToAasStep();
@@ -312,6 +314,29 @@ describe("AssetWizard (create mode)", () => {
     );
 
     expect(screen.queryByText("Resolved: TestLathe1")).not.toBeInTheDocument();
+  });
+
+  it("finds a match via repository search for a bare material/serial number and updates the field to the resolved value", async () => {
+    checkAasReference.mockResolvedValue({
+      status: "resolved",
+      idShort: "Aas279953_93343",
+      matchedGlobalAssetId: "https://dt.r-stahl.com/aas/instance/10003506595",
+    });
+    render(<AssetWizard mode="create" structureOptions={[]} />);
+    const user = await goToAasStep();
+    await user.type(
+      screen.getByLabelText("AAS endpoint URL or global asset ID"),
+      "10003506595"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Test connection" }));
+
+    expect(
+      await screen.findByText("Found via repository search: Aas279953_93343")
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("AAS endpoint URL or global asset ID")).toHaveValue(
+      "https://dt.r-stahl.com/aas/instance/10003506595"
+    );
   });
 
   it("goes back a step at a time and keeps the entered values", async () => {

@@ -2,12 +2,39 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { parseAssetInput, AssetValidationError } from "@/lib/asset-schema";
+import { parseAssetInput, AssetValidationError, type AssetInput } from "@/lib/asset-schema";
 import { parseAssetImage, AssetImageValidationError } from "@/lib/asset-images";
 import { reindexAssetAas, type ReindexResult } from "@/lib/aas-reindex";
 import { publishAssetAas, unpublishAssetAas } from "@/lib/aas-publish";
+import { resolveAasReference } from "@/lib/aas-actions";
 
 export type ActionState = { error: string | null };
+
+/**
+ * A customer may type a bare material/serial number into the AAS-reference
+ * field instead of a real endpoint URL or globalAssetId - the wizard's own
+ * "Test connection" step already corrects this client-side (see
+ * `AssetWizard.tsx`), but saving must not silently persist an unresolvable
+ * reference just because that step was skipped. Reuses the same repository
+ * search (`resolveAasReference`) here as a server-side safety net.
+ */
+async function resolveAasReferenceForSave(input: AssetInput): Promise<AssetInput> {
+  if (input.aasEndpointUrl || !input.aasGlobalAssetId) {
+    return input;
+  }
+  const resolved = await resolveAasReference(
+    { aasGlobalAssetId: input.aasGlobalAssetId },
+    input.aasGlobalAssetId
+  );
+  if (!resolved) {
+    return input;
+  }
+  return {
+    ...input,
+    aasEndpointUrl: resolved.reference.aasEndpointUrl ?? null,
+    aasGlobalAssetId: resolved.reference.aasGlobalAssetId ?? null,
+  };
+}
 
 /**
  * Applies a reindex result to the fields to persist: a removed reference
@@ -57,6 +84,8 @@ export async function createAsset(
     }
     throw error;
   }
+
+  input = await resolveAasReferenceForSave(input);
 
   const reindexResult = await reindexAssetAas({
     aasEndpointUrl: input.aasEndpointUrl,
@@ -109,6 +138,8 @@ export async function updateAsset(
     }
     throw error;
   }
+
+  input = await resolveAasReferenceForSave(input);
 
   const data: typeof input & {
     assetImage?: Uint8Array<ArrayBuffer> | null;
