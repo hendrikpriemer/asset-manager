@@ -275,11 +275,11 @@ describe("testAasRepositoryConnection", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("retries once after a delay and succeeds on the second attempt", async () => {
+  it("retries once after a delay and succeeds once the second attempt gets a response at all", async () => {
     vi.useFakeTimers();
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ ok: false } as Response)
+      .mockRejectedValueOnce(new Error("network down"))
       .mockResolvedValueOnce({ ok: true } as Response);
     vi.stubGlobal("fetch", fetchMock);
 
@@ -291,17 +291,18 @@ describe("testAasRepositoryConnection", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("returns unreachable when both attempts respond with an error status", async () => {
-    vi.useFakeTimers();
-    const fetchMock = vi.fn(async () => ({ ok: false }) as Response);
+  it("returns reachable even when the response is a non-2xx status - a real server answered", async () => {
+    // Confirmed live: R. STAHL's AAS API only supports direct-by-id shell
+    // lookups, not this generic listing call, and genuinely 404s here even
+    // though the repository is fully reachable and working. A completed
+    // HTTP response - any status - means there's a real server there.
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 404 }) as Response);
     vi.stubGlobal("fetch", fetchMock);
 
-    const resultPromise = testAasRepositoryConnection("https://example.com");
-    await vi.advanceTimersByTimeAsync(1500);
-    const result = await resultPromise;
+    const result = await testAasRepositoryConnection("https://api.dt.r-stahl.com/api/v1.0");
 
-    expect(result).toEqual({ status: "unreachable" });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ status: "reachable" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns unreachable when both attempts throw (network error or timeout)", async () => {

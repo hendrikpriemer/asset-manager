@@ -95,10 +95,17 @@ export type AasRepositoryConnectionResult =
 
 async function attemptConnection(baseUrl: string): Promise<boolean> {
   try {
-    const response = await fetch(`${baseUrl}/shells?limit=1`, {
+    // Any completed HTTP response - not just a 2xx - means there's a real
+    // server at this address actually speaking HTTP back to us. Confirmed
+    // live: R. STAHL's AAS API only supports direct-by-id shell lookups,
+    // not this generic listing call, and genuinely 404s here even though
+    // the repository is fully reachable and working - treating that as
+    // "unreachable" was flatly wrong. A thrown exception (DNS failure,
+    // connection refused, timeout) is the actual "nothing is there" signal.
+    await fetch(`${baseUrl}/shells?limit=1`, {
       signal: AbortSignal.timeout(CONNECTION_TEST_TIMEOUT_MS),
     });
-    return response.ok;
+    return true;
   } catch {
     return false;
   }
