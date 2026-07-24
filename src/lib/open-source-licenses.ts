@@ -14,6 +14,7 @@ export const OPEN_SOURCE_LICENSES: OpenSourceLicense[] = [
   { name: "@prisma/client", version: "7.8.0", license: "Apache-2.0" },
   { name: "@react-three/drei", version: "10.7.7", license: "MIT" },
   { name: "@react-three/fiber", version: "9.6.1", license: "MIT" },
+  { name: "jsqr", version: "1.4.0", license: "Apache-2.0" },
   { name: "leaflet", version: "1.9.4", license: "BSD-2-Clause" },
   { name: "next", version: "16.2.10", license: "MIT" },
   { name: "occt-import-js", version: "0.0.23", license: "LGPL-2.1" },

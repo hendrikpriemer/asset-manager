@@ -13,8 +13,12 @@ const { recognizeNameplateText } = vi.hoisted(() => ({
 const { parseNameplateOcrText } = vi.hoisted(() => ({
   parseNameplateOcrText: vi.fn(),
 }));
-const { identifyAssetFromNameplate } = vi.hoisted(() => ({
+const { identifyAssetFromNameplate, identifyAssetFromNameplateQrCode } = vi.hoisted(() => ({
   identifyAssetFromNameplate: vi.fn(),
+  identifyAssetFromNameplateQrCode: vi.fn(),
+}));
+const { decodeNameplateQrCode } = vi.hoisted(() => ({
+  decodeNameplateQrCode: vi.fn(),
 }));
 const { extractNameplateData } = vi.hoisted(() => ({
   extractNameplateData: vi.fn(),
@@ -47,7 +51,11 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/prisma", () => ({ prisma }));
 vi.mock("@/lib/nameplate-ocr", () => ({ recognizeNameplateText }));
 vi.mock("@/lib/nameplate-ocr-parse", () => ({ parseNameplateOcrText }));
-vi.mock("@/lib/nameplate-identification", () => ({ identifyAssetFromNameplate }));
+vi.mock("@/lib/nameplate-identification", () => ({
+  identifyAssetFromNameplate,
+  identifyAssetFromNameplateQrCode,
+}));
+vi.mock("@/lib/nameplate-qr", () => ({ decodeNameplateQrCode }));
 vi.mock("@/lib/aas-nameplate", () => ({ extractNameplateData }));
 vi.mock("@/lib/vision-provider-settings", () => ({ getDecryptedVisionProviderConfig }));
 vi.mock("@/lib/vision-providers/extract-nameplate-fields", () => ({
@@ -70,6 +78,8 @@ const { analyzeNameplatePhoto, linkAssetToMatchedAas, publishManualNameplate } =
 beforeEach(() => {
   vi.clearAllMocks();
   getDecryptedVisionProviderConfig.mockResolvedValue(null);
+  decodeNameplateQrCode.mockResolvedValue(null);
+  identifyAssetFromNameplateQrCode.mockResolvedValue(null);
 });
 
 describe("analyzeNameplatePhoto", () => {
@@ -87,6 +97,63 @@ describe("analyzeNameplatePhoto", () => {
     const result = await analyzeNameplatePhoto("asset-1");
 
     expect(result).toEqual({ status: "no-photo" });
+  });
+
+  it("returns a match from a QR code without ever running OCR", async () => {
+    prisma.asset.findUnique.mockResolvedValue({ nameplateImage: new Uint8Array([1, 2, 3]) });
+    prisma.aasRepository.findMany.mockResolvedValue([{ name: "R. STAHL" }]);
+    decodeNameplateQrCode.mockResolvedValue("https://dt.r-stahl.com/de-DE/10003506595/3540D");
+    const aasData = {
+      id: "https://dt.r-stahl.com/aas/instance/10003506595",
+      idShort: "Aas279953_93343",
+      submodels: [{ id: "sm-1" }],
+    };
+    identifyAssetFromNameplateQrCode.mockResolvedValue({
+      globalAssetId: "https://dt.r-stahl.com/aas/instance/10003506595",
+      aasData,
+    });
+    extractNameplateData.mockReturnValue({
+      manufacturerName: "R. STAHL Schaltgeräte GmbH",
+      productProperties: [
+        { idShort: "ManufacturerProductDesignation", value: "Remote I/O IS1+ CPU module" },
+      ],
+    });
+
+    const result = await analyzeNameplatePhoto("asset-1");
+
+    expect(decodeNameplateQrCode).toHaveBeenCalledWith(Buffer.from([1, 2, 3]));
+    expect(identifyAssetFromNameplateQrCode).toHaveBeenCalledWith(
+      "https://dt.r-stahl.com/de-DE/10003506595/3540D"
+    );
+    expect(recognizeNameplateText).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      status: "matched",
+      globalAssetId: "https://dt.r-stahl.com/aas/instance/10003506595",
+      manufacturerName: "R. STAHL Schaltgeräte GmbH",
+      productDesignation: "Remote I/O IS1+ CPU module",
+    });
+  });
+
+  it("falls back to OCR-based identification when the QR code doesn't resolve to a match", async () => {
+    prisma.asset.findUnique.mockResolvedValue({ nameplateImage: new Uint8Array([1, 2, 3]) });
+    prisma.aasRepository.findMany.mockResolvedValue([{ name: "WAGO" }]);
+    decodeNameplateQrCode.mockResolvedValue("https://example.com/unrelated");
+    identifyAssetFromNameplateQrCode.mockResolvedValue(null);
+    recognizeNameplateText.mockResolvedValue("ITEM-NO. 750-451");
+    parseNameplateOcrText.mockReturnValue({
+      manufacturerName: "WAGO",
+      articleNumber: "750-451",
+      rawText: "ITEM-NO. 750-451",
+    });
+    identifyAssetFromNameplate.mockResolvedValue({
+      globalAssetId: "https://wago.com/ids/assets/750-451",
+      aasData: { id: "x", idShort: "750-451", submodels: [] },
+    });
+
+    const result = await analyzeNameplatePhoto("asset-1");
+
+    expect(recognizeNameplateText).toHaveBeenCalled();
+    expect(result.status).toBe("matched");
   });
 
   it("runs OCR + parsing against configured repository names and returns a match with a preview", async () => {

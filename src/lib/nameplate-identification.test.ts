@@ -8,7 +8,9 @@ vi.mock("@/lib/prisma", () => ({ prisma }));
 const { getAasData } = vi.hoisted(() => ({ getAasData: vi.fn() }));
 vi.mock("@/lib/aas", () => ({ getAasData }));
 
-const { identifyAssetFromNameplate } = await import("./nameplate-identification");
+const { identifyAssetFromNameplate, identifyAssetFromNameplateQrCode } = await import(
+  "./nameplate-identification"
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -167,5 +169,122 @@ describe("identifyAssetFromNameplate", () => {
     // One call per matching pattern (assets/-style and aas/-style), not per
     // variant - there is only one variant here since nothing is ambiguous.
     expect(getAasData).toHaveBeenCalledTimes(2);
+  });
+
+  it("builds an R. STAHL instance-id candidate from the OCR-extracted instance id", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { name: "R. STAHL", isLocalMirror: false },
+    ]);
+    const aasData = {
+      id: "https://dt.r-stahl.com/aas/instance/10003806363",
+      idShort: "x",
+      submodels: [],
+    };
+    getAasData.mockResolvedValue(aasData);
+
+    const result = await identifyAssetFromNameplate("10003806363");
+
+    expect(getAasData).toHaveBeenCalledWith({
+      aasShellId: "https://dt.r-stahl.com/aas/instance/10003806363",
+    });
+    expect(result).toEqual({
+      globalAssetId: "https://dt.r-stahl.com/aas/instance/10003806363",
+      aasData,
+    });
+  });
+
+  it("matches an R. STAHL repository name case-insensitively for the instance-id pattern", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([{ name: "r. stahl", isLocalMirror: false }]);
+    getAasData.mockResolvedValue({ id: "x", idShort: "x", submodels: [] });
+
+    await identifyAssetFromNameplate("10003806363");
+
+    expect(getAasData).toHaveBeenCalledWith({
+      aasShellId: "https://dt.r-stahl.com/aas/instance/10003806363",
+    });
+  });
+});
+
+describe("identifyAssetFromNameplateQrCode", () => {
+  it("returns null immediately without querying anything when there is no QR text", async () => {
+    const result = await identifyAssetFromNameplateQrCode(null);
+
+    expect(result).toBeNull();
+    expect(prisma.aasRepository.findMany).not.toHaveBeenCalled();
+  });
+
+  it("resolves a real R. STAHL instance URL to its shell id and returns the match", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { name: "R. STAHL", isLocalMirror: false },
+    ]);
+    const aasData = {
+      id: "https://dt.r-stahl.com/aas/instance/10003506595",
+      idShort: "Aas279953_93343",
+      submodels: [],
+    };
+    getAasData.mockResolvedValue(aasData);
+
+    const result = await identifyAssetFromNameplateQrCode(
+      "https://dt.r-stahl.com/de-DE/10003506595/3540D"
+    );
+
+    expect(getAasData).toHaveBeenCalledWith({
+      aasShellId: "https://dt.r-stahl.com/aas/instance/10003506595",
+    });
+    expect(result).toEqual({
+      globalAssetId: "https://dt.r-stahl.com/aas/instance/10003506595",
+      aasData,
+    });
+  });
+
+  it("returns null when no configured repository matches a known manufacturer's QR URL pattern", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { name: "Some Other Vendor", isLocalMirror: false },
+    ]);
+
+    const result = await identifyAssetFromNameplateQrCode(
+      "https://dt.r-stahl.com/de-DE/10003506595/3540D"
+    );
+
+    expect(result).toBeNull();
+    expect(getAasData).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the QR text doesn't match any known manufacturer's URL pattern", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { name: "R. STAHL", isLocalMirror: false },
+    ]);
+
+    const result = await identifyAssetFromNameplateQrCode("https://example.com/unrelated");
+
+    expect(result).toBeNull();
+    expect(getAasData).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the shell id built from a matching QR URL does not resolve to a real shell", async () => {
+    // Confirmed live against a real, older R. STAHL unit without a digital
+    // twin registered at all - a genuinely unmatched QR/instance id is a
+    // valid, expected outcome, not an error.
+    prisma.aasRepository.findMany.mockResolvedValue([
+      { name: "R. STAHL", isLocalMirror: false },
+    ]);
+    getAasData.mockResolvedValue(null);
+
+    const result = await identifyAssetFromNameplateQrCode(
+      "https://dt.r-stahl.com/de-DE/10003806363/8570"
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("matches an R. STAHL repository name case-insensitively", async () => {
+    prisma.aasRepository.findMany.mockResolvedValue([{ name: "r. stahl", isLocalMirror: false }]);
+    getAasData.mockResolvedValue({ id: "x", idShort: "x", submodels: [] });
+
+    await identifyAssetFromNameplateQrCode("https://dt.r-stahl.com/de-DE/10003506595/3540D");
+
+    expect(getAasData).toHaveBeenCalledWith({
+      aasShellId: "https://dt.r-stahl.com/aas/instance/10003506595",
+    });
   });
 });

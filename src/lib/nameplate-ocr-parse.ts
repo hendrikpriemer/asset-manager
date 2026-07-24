@@ -33,7 +33,23 @@ const ARTICLE_NUMBER_LABEL_PATTERNS: RegExp[] = [
 // is found - OCR noise often drops or garbles the label text itself.
 const FALLBACK_ARTICLE_NUMBER_PATTERN = /\b\d{2,4}-\d{2,6}\b/;
 
+// R. STAHL's digital-twin instance id (tried via `lib/nameplate-
+// identification.ts`'s MANUFACTURER_ASSET_ID_PATTERNS) - confirmed live: an
+// 11-digit id starting with "1000", printed unlabeled under the nameplate's
+// barcode (not yet confirmed this printed number always matches a real,
+// resolvable shell - only the format is confirmed, resolution is a genuine
+// attempt either way). Tried *before* the labeled patterns and the dash
+// fallback: a real STAHL plate's own "Order no." label would otherwise win
+// with an unrelated value, and its type-code (e.g. "8570/11-306-S-01-0-00-
+// XXX") would otherwise false-positive-match the dash fallback's "11-306".
+const STAHL_INSTANCE_ID_PATTERN = /\b1000\d{7}\b/;
+
 function extractArticleNumber(rawText: string): string | null {
+  const stahlInstanceId = rawText.match(STAHL_INSTANCE_ID_PATTERN)?.[0];
+  if (stahlInstanceId) {
+    return stahlInstanceId;
+  }
+
   for (const pattern of ARTICLE_NUMBER_LABEL_PATTERNS) {
     const match = rawText.match(pattern);
     if (match) {

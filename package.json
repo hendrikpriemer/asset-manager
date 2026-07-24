@@ -1,6 +1,6 @@
 {
   "name": "asset-manager",
-  "version": "0.1.26",
+  "version": "0.1.28",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -17,6 +17,7 @@
     "@prisma/client": "^7.8.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "next": "16.2.10",
     "occt-import-js": "^0.0.23",

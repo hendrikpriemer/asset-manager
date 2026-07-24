@@ -36,6 +36,33 @@ describe("parseNameplateOcrText", () => {
     expect(result.articleNumber).toBe("750-451");
   });
 
+  it("recognizes R. STAHL's unlabeled 11-digit instance id printed under the barcode", () => {
+    const result = parseNameplateOcrText(
+      "8570/11-306-S-01-0-00-XXX\nOrder no.: 2084679\n10003806363\nDate: 04.2024",
+      []
+    );
+
+    expect(result.articleNumber).toBe("10003806363");
+  });
+
+  it("prefers the STAHL instance id over the 'Order no.' label when both are present", () => {
+    const result = parseNameplateOcrText("Order no.: 2084679\n10003806363", []);
+
+    expect(result.articleNumber).toBe("10003806363");
+  });
+
+  it("prefers the STAHL instance id over the dash-separated fallback (e.g. from a type-code)", () => {
+    const result = parseNameplateOcrText("8570/11-306-S-01-0-00-XXX\n10003806363", []);
+
+    expect(result.articleNumber).toBe("10003806363");
+  });
+
+  it("does not treat an unrelated 11-digit number as a STAHL instance id unless it starts with 1000", () => {
+    const result = parseNameplateOcrText("99998806363", []);
+
+    expect(result.articleNumber).toBeNull();
+  });
+
   it("returns null for an article number when nothing matches", () => {
     const result = parseNameplateOcrText("completely unrelated garbage text", []);
 

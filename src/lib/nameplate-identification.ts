@@ -31,6 +31,14 @@
  *   candidate we already know isn't a real assetId.
  *   Add another manufacturer's pattern(s) here once its own convention(s)
  *   are similarly confirmed.
+ * - R. STAHL: `https://dt.r-stahl.com/aas/instance/{id}` - the shell's own
+ *   id, resolved the same fast `aasShellId` way as WAGO's above. Only
+ *   *partially* confirmed: a real physical nameplate's QR code does encode
+ *   this exact URL for a specific unit (see `identifyAssetFromNameplateQrCode`
+ *   below), but whether the same numeric id printed as plain OCR-readable
+ *   text (unlabeled, under the nameplate's barcode) always matches is an
+ *   open, deliberately low-risk bet - see `lib/nameplate-ocr-parse.ts`'s
+ *   STAHL_INSTANCE_ID_PATTERN.
  *
  * Reuses `getAasData` (`lib/aas.ts`) as-is for the actual resolution - that
  * function already races a candidate across every configured repository
@@ -70,6 +78,19 @@ const MANUFACTURER_ASSET_ID_PATTERNS: ManufacturerAssetIdPattern[] = [
     matchesRepositoryName: (repositoryName) => repositoryName.toLowerCase().includes("wago"),
     referenceKind: "aasShellId",
     buildCandidateValue: (articleNumber) => `https://wago.com/ids/aas/${articleNumber}`,
+  },
+  {
+    // R. STAHL's own shell id, built from the instance id printed
+    // (unlabeled, under the barcode) on the nameplate - see
+    // `lib/nameplate-ocr-parse.ts`'s STAHL_INSTANCE_ID_PATTERN. Speculative:
+    // confirmed live that a real, *QR-encoded* instance id resolves this
+    // way, but not yet confirmed that the printed barcode number is always
+    // the same value - a wrong guess just fails to resolve like any other
+    // non-match, so this is a deliberately low-risk bet rather than a
+    // confirmed pattern like WAGO's above.
+    matchesRepositoryName: (repositoryName) => repositoryName.toLowerCase().includes("stahl"),
+    referenceKind: "aasShellId",
+    buildCandidateValue: (articleNumber) => `https://dt.r-stahl.com/aas/instance/${articleNumber}`,
   },
 ];
 
@@ -129,4 +150,60 @@ export async function identifyAssetFromNameplate(
   } catch {
     return null;
   }
+}
+
+/**
+ * A QR code printed on a nameplate can link directly to that specific
+ * unit's digital twin - confirmed live against a real physical R. STAHL
+ * nameplate: `https://dt.r-stahl.com/{locale}/{instanceId}/{typeCode}`,
+ * where `instanceId` is the same numeric id as the shell's own id
+ * (`https://dt.r-stahl.com/aas/instance/{instanceId}`). This is a far more
+ * precise signal than OCR-guessing an article number, since it's already
+ * unit-specific rather than a generic product-type code - so it's tried as
+ * its own, separate identification path (see `lib/nameplate-qr.ts` for the
+ * decoding step), not folded into `identifyAssetFromNameplate` above.
+ *
+ * Confirmed live: not every nameplate has one (an older R. STAHL unit
+ * without a QR code, and without any digital twin registered at all, was
+ * checked directly against the real API and genuinely doesn't resolve) -
+ * this is expected to return null for those, same as any other non-match.
+ */
+type ManufacturerQrUrlPattern = {
+  matchesRepositoryName: (repositoryName: string) => boolean;
+  urlPattern: RegExp;
+  buildShellId: (match: RegExpMatchArray) => string;
+};
+
+const MANUFACTURER_QR_URL_PATTERNS: ManufacturerQrUrlPattern[] = [
+  {
+    matchesRepositoryName: (repositoryName) => repositoryName.toLowerCase().includes("stahl"),
+    urlPattern: /^https:\/\/dt\.r-stahl\.com\/[a-zA-Z]{2}-[a-zA-Z]{2}\/(\d+)\/[^/]+\/?$/,
+    buildShellId: (match) => `https://dt.r-stahl.com/aas/instance/${match[1]}`,
+  },
+];
+
+export async function identifyAssetFromNameplateQrCode(
+  qrText: string | null
+): Promise<NameplateIdentificationMatch | null> {
+  if (!qrText) {
+    return null;
+  }
+
+  const repositories = await prisma.aasRepository.findMany({
+    where: { isLocalMirror: false },
+  });
+
+  for (const pattern of MANUFACTURER_QR_URL_PATTERNS) {
+    const match = qrText.match(pattern.urlPattern);
+    if (!match || !repositories.some((repository) => pattern.matchesRepositoryName(repository.name))) {
+      continue;
+    }
+    const shellId = pattern.buildShellId(match);
+    const aasData = await getAasData({ aasShellId: shellId });
+    if (aasData) {
+      return { globalAssetId: shellId, aasData };
+    }
+  }
+
+  return null;
 }

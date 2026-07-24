@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { recognizeNameplateText } from "@/lib/nameplate-ocr";
 import { parseNameplateOcrText } from "@/lib/nameplate-ocr-parse";
-import { identifyAssetFromNameplate } from "@/lib/nameplate-identification";
+import { decodeNameplateQrCode } from "@/lib/nameplate-qr";
+import {
+  identifyAssetFromNameplate,
+  identifyAssetFromNameplateQrCode,
+} from "@/lib/nameplate-identification";
 import { getDecryptedVisionProviderConfig } from "@/lib/vision-provider-settings";
 import { extractNameplateFieldsWithVision } from "@/lib/vision-providers/extract-nameplate-fields";
 import { extractNameplateData } from "@/lib/aas-nameplate";
@@ -69,6 +73,23 @@ export async function analyzeNameplatePhoto(assetId: string): Promise<NameplateA
     where: { isLocalMirror: false },
   });
   const imageBuffer = Buffer.from(asset.nameplateImage);
+
+  // A QR code, when present, links directly to that specific unit's own
+  // digital twin - confirmed live against a real R. STAHL nameplate. Tried
+  // first since it's a far more precise signal than OCR-guessing an article
+  // number, and skips straight to a match without needing OCR at all.
+  const qrText = await decodeNameplateQrCode(imageBuffer);
+  const qrMatch = await identifyAssetFromNameplateQrCode(qrText);
+  if (qrMatch) {
+    const preview = nameplatePreview(qrMatch.aasData);
+    return {
+      status: "matched",
+      globalAssetId: qrMatch.globalAssetId,
+      manufacturerName: preview.manufacturerName,
+      productDesignation: preview.productDesignation,
+    };
+  }
+
   const rawText = await recognizeNameplateText(imageBuffer);
   const ocrGuess = parseNameplateOcrText(
     rawText,
